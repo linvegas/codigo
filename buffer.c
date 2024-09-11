@@ -91,8 +91,12 @@ Buffer *buffer_new(const char *name)
     buf->cursor_row = 0;
     buf->cursor_col = 0;
     buf->cursor_prev_col = 0;
+    buf->scroll_row = 0;
+    buf->scroll_col = 0;
 
     buf->name = (name == NULL || *name == '\0') ? "[NO NAME]" : name;
+
+    buf->view = (Rectangle){0};
 
     return buf;
 }
@@ -114,11 +118,6 @@ Buffer *buffer_from_file(const char *filename)
 {
     Buffer *buf = buffer_new("main.c");
     buf->len = 0;
-    buf->cursor_row = 0;
-    buf->cursor_col = 0;
-    buf->cursor_prev_col = 0;
-    buf->scroll_row = 0;
-    buf->scroll_col = 0;
     buf->lines[0] = NULL;
 
     FILE *file =  fopen(filename, "rb");
@@ -147,15 +146,6 @@ void buffer_new_line(Buffer *buf)
     if (buf->cursor_row > buf->len) return;
 
     buffer_grow(buf);
-    // if (buf->len >= buf->cap) {
-    //     size_t new_capacity = buf->cap * 2;
-
-    //     buf->lines = (Line **)realloc(buf->lines, new_capacity * sizeof(Line));
-
-    //     assert(buf->lines != NULL && "buf->lines realloc failed");
-
-    //     buf->cap = new_capacity;
-    // }
 
     buf->cursor_row += 1;
     buf->cursor_col = 0;
@@ -206,7 +196,7 @@ void buffer_move_cursor_right(Buffer *buf)
     }
 }
 
-void buffer_move_cursor_up(Buffer *buf)
+void buffer_move_cursor_up(Buffer *buf, Vector2 font_size)
 {
     if (buf->cursor_row == 0) {
         buf->cursor_row = 0;
@@ -225,9 +215,14 @@ void buffer_move_cursor_up(Buffer *buf)
     } else {
         buf->cursor_col = buf->cursor_prev_col;
     }
+
+    if (buf->cursor_row * font_size.y <= buf->view.y + 100 && buf->view.y > 0) {
+        buf->scroll_row -= 1;
+        buf->view.y = buf->scroll_row * font_size.y;
+    }
 }
 
-void buffer_move_cursor_down(Buffer *buf)
+void buffer_move_cursor_down(Buffer *buf, Vector2 font_size)
 {
     if (buf->cursor_row >= buf->len - 1) {
         buf->cursor_row = buf->len - 1;
@@ -246,4 +241,10 @@ void buffer_move_cursor_down(Buffer *buf)
     } else {
         buf->cursor_col = buf->cursor_prev_col;
     }
+
+    if (buf->cursor_row * font_size.y >= (buf->view.height + buf->view.y) - 100) {
+        buf->scroll_row += 1;
+        buf->view.y = buf->scroll_row * font_size.y;
+    }
+
 }

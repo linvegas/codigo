@@ -40,44 +40,37 @@ int main(void)
 
     Vector2 font_size = MeasureTextEx(font, " ", font.baseSize, 0);
 
-    // Rectangle buf_bound = { 0, 0, 1000, buf->len * font_size.y };
-    Rectangle view = { 0, 0, GetScreenWidth(), GetScreenHeight() };
-
     SetTargetFPS(30);
 
     while(!WindowShouldClose()) {
 
-        Rectangle cursor_rect = {
-            font_size.x*buf->cursor_col, buf->cursor_row*font_size.y,
-            font_size.x, font_size.y,
-        };
+        buf->view.width = GetScreenWidth();
+        buf->view.height = GetScreenHeight();
 
-        printf("Y: %f ", view.y);
-        printf("Height: %f\n", view.height);
+        // Just DEBUG stuff
+        printf("CURSOR ROW: %ld | ", buf->cursor_row);
+        printf("CURSOR COL: %ld | ", buf->cursor_col);
+
+        printf("SCROLL ROW: %ld | ", buf->scroll_row);
+        printf("SCROLL COL: %ld | ", buf->scroll_col);
+
+        printf("VIEW Y: %f | ", buf->view.y);
+        printf("VIEW HEIGHT: %f | ", buf->view.height);
+
+        printf("CAMERA Y: %f | ", camera.offset.y);
+        printf("CAMERA X: %f\n", camera.offset.x);
 
         if (mode == NORMAL) {
             if (IsKeyPressed(KEY_L)) buffer_move_cursor_right(buf);
             if (IsKeyPressed(KEY_H)) buffer_move_cursor_left(buf);
-            if (IsKeyPressed(KEY_J)) {
-                buffer_move_cursor_down(buf);
-
-                if (buf->cursor_row * font_size.y >= (view.height + view.y) - 100) {
-                    buf->scroll_row += 1;
-                }
-            }
-            if (IsKeyPressed(KEY_K)) {
-                buffer_move_cursor_up(buf);
-
-                if (buf->cursor_row * cursor_rect.height <= view.y + 100 && buf->scroll_row > 0) {
-                    buf->scroll_row -= 1;
-                }
-            }
+            if (IsKeyPressed(KEY_J)) buffer_move_cursor_down(buf, font_size);
+            if (IsKeyPressed(KEY_K)) buffer_move_cursor_up(buf, font_size);
             if (IsKeyPressed(KEY_I)) mode = INSERT;
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);
             if (IsKeyPressed(KEY_LEFT))  buffer_move_cursor_left(buf);
-            if (IsKeyPressed(KEY_DOWN))  buffer_move_cursor_down(buf);
-            if (IsKeyPressed(KEY_UP))    buffer_move_cursor_up(buf);
+            if (IsKeyPressed(KEY_DOWN))  buffer_move_cursor_down(buf, font_size);
+            if (IsKeyPressed(KEY_UP))    buffer_move_cursor_up(buf, font_size);
 
             if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete_text(buf);
             if (IsKeyPressed(KEY_ENTER))     buffer_new_line(buf);
@@ -99,12 +92,12 @@ int main(void)
             }
         }
 
-        // camera.target = (Vector2){cursor_rect.x, cursor_rect.y};
-        // float margin = font_size.y*3;
-        // if (cursor_rect.y + cursor_rect.height > camera.offset.y + GetScreenHeight() - margin) {
-            // camera.offset.y -= cursor_rect.y - GetScreenHeight() + 100;
-        //     camera.offset.y = -(cursor_rect.y + cursor_rect.height - GetScreenHeight() + margin);
-        // }
+        Rectangle cursor_rect = {
+            font_size.x*buf->cursor_col, buf->cursor_row*font_size.y,
+            font_size.x, font_size.y,
+        };
+
+        camera.offset.y = -(buf->view.y);
 
         BeginDrawing();
 
@@ -117,9 +110,6 @@ int main(void)
 
         // RENDER CURSOR
         DrawRectangleRec(cursor_rect, THEME_BLUE);
-
-        view.y = buf->scroll_row * font_size.y;
-        camera.offset.y = -(view.y);
 
         float dx = 0;
         float dy = 0;
