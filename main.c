@@ -37,7 +37,7 @@ int main(void)
     Buffer *buf = buffer_from_file("main.c");
     Mode mode = NORMAL;
 
-    // float cursor_timer = 0;
+    float key_down_timer = 0;
 
     Camera2D camera = {0};
     camera.target = (Vector2){0, 0};
@@ -68,10 +68,51 @@ int main(void)
         printf("CAMERA X: %f\n", camera.offset.x);
 
         if (mode == NORMAL) {
-            if (IsKeyPressed(KEY_L)) buffer_move_cursor_right(buf);
-            if (IsKeyPressed(KEY_H)) buffer_move_cursor_left(buf);
-            if (IsKeyPressed(KEY_J)) buffer_move_cursor_down(buf, font_size);
-            if (IsKeyPressed(KEY_K)) buffer_move_cursor_up(buf, font_size);
+            if (IsKeyDown(KEY_H)) {
+                key_down_timer += GetFrameTime();
+
+                if (IsKeyPressed(KEY_H)) buffer_move_cursor_left(buf);
+
+                if (key_down_timer >= 0.2) {
+                    buffer_move_cursor_left(buf);
+                }
+            }
+
+            if (IsKeyDown(KEY_L)) {
+                key_down_timer += GetFrameTime();
+
+                if (IsKeyPressed(KEY_L)) buffer_move_cursor_right(buf);
+
+                if (key_down_timer >= 0.2) {
+                    buffer_move_cursor_right(buf);
+                }
+            }
+
+            if (IsKeyDown(KEY_J)) {
+                key_down_timer += GetFrameTime();
+
+                if (IsKeyPressed(KEY_J)) buffer_move_cursor_down(buf, font_size);
+
+                if (key_down_timer >= 0.2) {
+                    buffer_move_cursor_down(buf, font_size);
+                }
+            }
+
+            if (IsKeyDown(KEY_K)) {
+                key_down_timer += GetFrameTime();
+
+                if (IsKeyPressed(KEY_K)) buffer_move_cursor_up(buf, font_size);
+
+                if (key_down_timer >= 0.2) {
+                    buffer_move_cursor_up(buf, font_size);
+                }
+            }
+
+            if (IsKeyReleased(KEY_J)) key_down_timer = 0;
+            if (IsKeyReleased(KEY_K)) key_down_timer = 0;
+            if (IsKeyReleased(KEY_H)) key_down_timer = 0;
+            if (IsKeyReleased(KEY_L)) key_down_timer = 0;
+
             if (IsKeyPressed(KEY_I)) mode = INSERT;
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);
@@ -110,8 +151,6 @@ int main(void)
 
         ClearBackground(THEME_BG);
 
-        // cursor_timer += GetFrameTime();
-        // printf("%f\n", cursor_timer);
 
         BeginMode2D(camera);
 
