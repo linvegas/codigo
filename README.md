@@ -2,16 +2,22 @@
 
 A text editor made with [Raylib](https://www.raylib.com).
 
-## Setting Up
+## Dependencies
 
-You need to have raylib installed in your system first, i will include it on code in the future.
+- raylib (i'll probably include it on code in the future)
+- make
+
+## Setup
+
+To build and run the application:
 
 ```console
 $ make
 ```
 
-## Running
+Only build or only run the application:
 
 ```console
-$ ./codigo
+$ make build
+$ make run
 ```
