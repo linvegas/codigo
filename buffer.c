@@ -174,6 +174,12 @@ void buffer_delete_text(Buffer *buf)
     }
 }
 
+void buffer_delete_text_under_cursor(Buffer *buf)
+{
+    if (buf->lines[buf->cursor_row]->len > 0)
+        line_delete(buf->lines[buf->cursor_row], buf->cursor_col);
+}
+
 void buffer_move_cursor_left(Buffer *buf)
 {
     if (buf->cursor_col == 0) {

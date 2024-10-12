@@ -47,7 +47,7 @@ int main(void)
 
     Vector2 font_size = MeasureTextEx(font, " ", font.baseSize, 0);
 
-    SetTargetFPS(30);
+    SetTargetFPS(60);
 
     while(!WindowShouldClose()) {
 
@@ -114,6 +114,7 @@ int main(void)
             if (IsKeyReleased(KEY_L)) key_down_timer = 0;
 
             if (IsKeyPressed(KEY_I)) mode = INSERT;
+            if (IsKeyPressed(KEY_X)) buffer_delete_text_under_cursor(buf);
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);
             if (IsKeyPressed(KEY_LEFT))  buffer_move_cursor_left(buf);
@@ -157,10 +158,10 @@ int main(void)
         // RENDER CURSOR
         DrawRectangleRec(cursor_rect, THEME_BLUE);
 
+        // RENDER TEXT
         float dx = 0;
         float dy = 0;
 
-        // RENDER TEXT
         for (size_t row = 0; row < buf->len; row++) {
             Line *line = buf->lines[row];
             dx = 0;
@@ -172,12 +173,12 @@ int main(void)
 
                 dy = font.baseSize * row;
 
-                Color text_color = THEME_FG;
+                // Color text_color = THEME_FG;
 
-                // // Buggy??
-                // Color text_color =
-                //     col == buf->cursor_col && row == buf->cursor_row
-                //     ? THEME_BG : THEME_FG;
+                // Buggy?? (Aparently not)
+                Color text_color =
+                    col == buf->cursor_col && row == buf->cursor_row
+                    ? THEME_BG : THEME_FG;
 
                 DrawTextEx(
                     font, str,
@@ -194,6 +195,7 @@ int main(void)
 
         EndMode2D();
 
+        // RENDER STATUSBAR
         Rectangle status_bar_rect = {
             .x = 0,
             .y = GetScreenHeight() - font_size.y,

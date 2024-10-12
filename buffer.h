@@ -37,6 +37,7 @@ Buffer *buffer_from_file(const char *filename);
 void buffer_new_line(Buffer *buf);
 void buffer_insert_text(Buffer *buf, const char *text);
 void buffer_delete_text(Buffer *buf);
+void buffer_delete_text_under_cursor(Buffer *buf);
 void buffer_move_cursor_left(Buffer *buf);
 void buffer_move_cursor_right(Buffer *buf);
 void buffer_move_cursor_up(Buffer *buf, Vector2 font_size);
