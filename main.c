@@ -11,6 +11,10 @@
 #define THEME_FG GetColor(0xa7aab0ff)
 #define THEME_BLUE GetColor(0x57a5e5ff)
 
+#define FACTOR 70
+#define SCR_WIDTH 16 * FACTOR
+#define SCR_HEIGHT 9 * FACTOR
+
 typedef enum {
     NORMAL,
     INSERT
@@ -18,7 +22,10 @@ typedef enum {
 
 int main(void)
 {
-    InitWindow(800, 600, "Codigo");
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+
+    InitWindow(SCR_WIDTH, SCR_HEIGHT, "Codigo");
+
     SetExitKey(0);
 
     Font font = LoadFontEx(
