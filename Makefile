@@ -6,4 +6,4 @@ build: main.c
 	$(CC) $(CFLAGS) -o codigo main.c buffer.c -lraylib
 
 run: ./codigo
-	./codigo
+	./codigo $(ARGS)

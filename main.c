@@ -6,21 +6,26 @@
 
 #include "buffer.h"
 
-#define THEME_BG GetColor(0x0f1115ff)
-#define THEME_BG_LIGHT GetColor(0x2c2d31ff)
 #define THEME_FG GetColor(0xa7aab0ff)
+#define THEME_BG GetColor(0x0f1115ff)
+#define THEME_BG_1 GetColor(0x2c2d31ff)
+#define THEME_BG_2 GetColor(0x35363bff)
+#define THEME_BG_3 GetColor(0x37383dff)
+#define THEME_GREY GetColor(0x5a5b5eff)
+#define THEME_LIGHT_GREY GetColor(0x818387ff)
 #define THEME_BLUE GetColor(0x57a5e5ff)
 
 #define FACTOR 70
 #define SCR_WIDTH 16 * FACTOR
 #define SCR_HEIGHT 9 * FACTOR
+#define FONT_SIZE 30
 
 typedef enum {
     NORMAL,
     INSERT
 } Mode;
 
-int main(void)
+int main(int argc, char **argv)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
@@ -30,11 +35,19 @@ int main(void)
 
     Font font = LoadFontEx(
         "/usr/share/fonts/OTF/DroidSansMNerdFontMono-Regular.otf",
-        32, 0, 0
+        FONT_SIZE, 0, 0
     );
 
-    // Buffer *buf = buffer_new("");
-    Buffer *buf = buffer_from_file("main.c");
+    Buffer *buf = NULL;
+
+    if (argc > 1) {
+        const char *filename = argv[1];
+        // TODO: Check if file exists
+        buf = buffer_from_file(filename);
+    } else {
+        buf = buffer_new("");
+    }
+
     Mode mode = NORMAL;
 
     float key_down_timer = 0;
@@ -55,17 +68,17 @@ int main(void)
         buf->view.height = GetScreenHeight();
 
         // Just DEBUG stuff
-        printf("CURSOR ROW: %ld | ", buf->cursor_row);
-        printf("CURSOR COL: %ld | ", buf->cursor_col);
+        // printf("CURSOR ROW: %ld | ", buf->cursor_row);
+        // printf("CURSOR COL: %ld | ", buf->cursor_col);
 
-        printf("SCROLL ROW: %ld | ", buf->scroll_row);
-        printf("SCROLL COL: %ld | ", buf->scroll_col);
+        // printf("SCROLL ROW: %ld | ", buf->scroll_row);
+        // printf("SCROLL COL: %ld | ", buf->scroll_col);
 
-        printf("VIEW Y: %f | ", buf->view.y);
-        printf("VIEW HEIGHT: %f | ", buf->view.height);
+        // printf("VIEW Y: %f | ", buf->view.y);
+        // printf("VIEW HEIGHT: %f | ", buf->view.height);
 
-        printf("CAMERA Y: %f | ", camera.offset.y);
-        printf("CAMERA X: %f\n", camera.offset.x);
+        // printf("CAMERA Y: %f | ", camera.offset.y);
+        // printf("CAMERA X: %f\n", camera.offset.x);
 
         if (mode == NORMAL) {
             if (IsKeyDown(KEY_H)) {
@@ -115,6 +128,11 @@ int main(void)
 
             if (IsKeyPressed(KEY_I)) mode = INSERT;
             if (IsKeyPressed(KEY_X)) buffer_delete_text_under_cursor(buf);
+            if (IsKeyPressed(KEY_ZERO)) buffer_move_cursor_line_begin(buf);
+
+            if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
+                if (IsKeyPressed(KEY_FOUR)) buffer_move_cursor_line_end(buf);
+            }
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);
             if (IsKeyPressed(KEY_LEFT))  buffer_move_cursor_left(buf);
@@ -151,7 +169,6 @@ int main(void)
         BeginDrawing();
 
         ClearBackground(THEME_BG);
-
 
         BeginMode2D(camera);
 
@@ -203,8 +220,9 @@ int main(void)
             .height = font_size.y
         };
 
-        DrawRectangleRec(status_bar_rect, THEME_BG_LIGHT);
+        DrawRectangleRec(status_bar_rect, THEME_BG_2);
 
+        // RENDER STATUSBAR : MODE
         Rectangle status_bar_mode_rect = {
             .x = status_bar_rect.x,
             .y = status_bar_rect.y,
@@ -212,15 +230,16 @@ int main(void)
             .height = status_bar_rect.height
         };
 
-        DrawRectangleRec(status_bar_mode_rect, DARKGRAY);
+        DrawRectangleRec(status_bar_mode_rect, mode == INSERT ? THEME_BLUE : THEME_GREY);
 
         DrawTextEx(
             font, mode == INSERT ? "INS" : "NOR",
             (Vector2){status_bar_rect.x + font_size.x, status_bar_rect.y},
             font.baseSize,
-            0, THEME_FG
+            0, mode == INSERT ? THEME_BG : THEME_FG
         );
 
+        // RENDER STATUSBAR : BUFFER NAME
         DrawTextEx(
             font, buf->name,
             (Vector2){status_bar_rect.x + font_size.x*6, status_bar_rect.y},
@@ -228,6 +247,7 @@ int main(void)
             0, THEME_FG
         );
 
+        // RENDER STATUSBAR : COL x ROW
         const char *row_col_text = TextFormat("%ld:%ld", buf->cursor_row + 1, buf->cursor_col + 1);
 
         DrawTextEx(
