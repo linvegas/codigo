@@ -13,10 +13,12 @@ typedef struct {
 
 Line *line_new();
 Line *line_from(const char *text);
-void line_insert(Line *line, const char *text, size_t col);
-void line_delete(Line *line, size_t col);
+void line_grow(Line *line);
+void line_insert_at(Line *line, size_t col, const char *text);
+void line_delete_at(Line *line, size_t col);
+void line_free(Line *line);
 
-#define BUF_INIT_CAP 8
+#define BUF_INIT_CAP 4 // Initial number of lines
 
 typedef struct {
     Line **lines;
@@ -36,11 +38,14 @@ void buffer_grow(Buffer *buf);
 Buffer *buffer_from_file(const char *filename);
 void buffer_new_line(Buffer *buf);
 void buffer_insert_text(Buffer *buf, const char *text);
+void buffer_delete_line(Buffer *buf, Line *line);
 void buffer_delete_text(Buffer *buf);
 void buffer_delete_text_under_cursor(Buffer *buf);
 void buffer_move_cursor_left(Buffer *buf);
 void buffer_move_cursor_right(Buffer *buf);
 void buffer_move_cursor_up(Buffer *buf, Vector2 font_size);
 void buffer_move_cursor_down(Buffer *buf, Vector2 font_size);
+void buffer_move_cursor_line_begin(Buffer *buf);
+void buffer_move_cursor_line_end(Buffer *buf);
 
 #endif // BUFFER_H

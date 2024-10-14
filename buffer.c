@@ -21,26 +21,9 @@ Line *line_new() {
     return line;
 }
 
-Line *line_from(const char *text)
+void line_grow(Line *line)
 {
-    Line *line = line_new();
-
-    size_t text_len = strlen(text);
-
-    line->len = text_len;
-
-    memcpy(line->text, text, text_len);
-
-    return line;
-}
-
-void line_insert(Line *line, const char *text, size_t col)
-{
-    const size_t text_len = strlen(text);
-
-    if (col > line->len || text_len == 0) return;
-
-    if (line->len >= line->cap) {
+    while (line->len >= line->cap) {
         size_t new_capacity = line->cap * 2;
 
         line->text = realloc(line->text, new_capacity * sizeof(char));
@@ -49,6 +32,30 @@ void line_insert(Line *line, const char *text, size_t col)
 
         line->cap = new_capacity;
     }
+}
+
+Line *line_from(const char *text)
+{
+    Line *line = line_new();
+
+    size_t text_len = strlen(text);
+
+    line->len = text_len;
+
+    line_grow(line);
+
+    memcpy(line->text, text, text_len);
+
+    return line;
+}
+
+void line_insert_at(Line *line, size_t col, const char *text)
+{
+    const size_t text_len = strlen(text);
+
+    if (col > line->len || text_len == 0) return;
+
+    line_grow(line);
 
     memmove(
         line->text + col + text_len,
@@ -61,7 +68,7 @@ void line_insert(Line *line, const char *text, size_t col)
     line->len += text_len;
 }
 
-void line_delete(Line *line, size_t col)
+void line_delete_at(Line *line, size_t col)
 {
     if (col > line->len) col = line->len;
 
@@ -72,6 +79,11 @@ void line_delete(Line *line, size_t col)
     );
 
     line->len -= 1;
+}
+
+void line_free(Line *line)
+{
+    free(line);
 }
 
 Buffer *buffer_new(const char *name)
@@ -103,7 +115,7 @@ Buffer *buffer_new(const char *name)
 
 void buffer_grow(Buffer *buf)
 {
-    if (buf->len >= buf->cap) {
+    while (buf->len >= buf->cap) {
         size_t new_capacity = buf->cap * 2;
 
         buf->lines = (Line **)realloc(buf->lines, new_capacity * sizeof(Line));
@@ -128,11 +140,16 @@ Buffer *buffer_from_file(const char *filename)
 
     while (fgets(line, sizeof(line), file)) {
         buffer_grow(buf);
+
         size_t line_len = strlen(line);
+
         if (line[line_len - 1] == '\n') line[line_len - 1] = '\0';
+
         Line *new_line = line_from(line);
+
         buf->lines[i] = new_line;
         buf->len += 1;
+
         i++;
     }
 
@@ -141,6 +158,8 @@ Buffer *buffer_from_file(const char *filename)
     return buf;
 }
 
+// TODO: Reimplement this taking in count the row position
+// and doing the proper memory allocation
 void buffer_new_line(Buffer *buf)
 {
     if (buf->cursor_row > buf->len) return;
@@ -159,17 +178,40 @@ void buffer_insert_text(Buffer *buf, const char *text)
 {
     assert(buf->cursor_row < buf->len);
 
-    line_insert(buf->lines[buf->cursor_row], text, buf->cursor_col);
+    line_insert_at(buf->lines[buf->cursor_row], buf->cursor_col, text);
 
     buf->cursor_col += 1;
     buf->cursor_prev_col = buf->cursor_col;
 }
 
+void buffer_delete_line(Buffer *buf, Line *line)
+{
+    if (buf->len < 2) return;
+
+    memmove(
+        buf->lines + buf->cursor_row,
+        buf->lines + buf->cursor_row + 1,
+        (buf->len - buf->cursor_row) * sizeof(line)
+    );
+
+    buf->len -= 1;
+    line_free(line);
+}
+
 void buffer_delete_text(Buffer *buf)
 {
     if (buf->cursor_col > 0 && buf->lines[buf->cursor_row]->len > 0) {
-        line_delete(buf->lines[buf->cursor_row], buf->cursor_col - 1);
+        line_delete_at(buf->lines[buf->cursor_row], buf->cursor_col - 1);
+
         buf->cursor_col -= 1;
+        buf->cursor_prev_col = buf->cursor_col;
+
+    } else if (buf->lines[buf->cursor_row]->len < 1 && buf->len > 1) {
+        buffer_delete_line(buf, buf->lines[buf->cursor_row]);
+
+        if (buf->cursor_row > 0) buf->cursor_row -= 1;
+
+        buf->cursor_col = buf->lines[buf->cursor_row]->len;
         buf->cursor_prev_col = buf->cursor_col;
     }
 }
@@ -177,7 +219,7 @@ void buffer_delete_text(Buffer *buf)
 void buffer_delete_text_under_cursor(Buffer *buf)
 {
     if (buf->lines[buf->cursor_row]->len > 0)
-        line_delete(buf->lines[buf->cursor_row], buf->cursor_col);
+        line_delete_at(buf->lines[buf->cursor_row], buf->cursor_col);
 }
 
 void buffer_move_cursor_left(Buffer *buf)
@@ -252,5 +294,16 @@ void buffer_move_cursor_down(Buffer *buf, Vector2 font_size)
         buf->scroll_row += 1;
         buf->view.y = buf->scroll_row * font_size.y;
     }
+}
 
+void buffer_move_cursor_line_begin(Buffer *buf)
+{
+    buf->cursor_col = 0;
+    buf->cursor_prev_col = buf->cursor_col;
+}
+
+void buffer_move_cursor_line_end(Buffer *buf)
+{
+    buf->cursor_col = buf->lines[buf->cursor_row]->len;
+    buf->cursor_prev_col = buf->cursor_col;
 }
