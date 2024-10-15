@@ -173,12 +173,11 @@ void buffer_new_line(Buffer *buf)
 
         size_t text_after_cursor_len = text_len - buf->cursor_col;
 
-        // char text_after_cursor[text_after_cursor_len];
-        char *text_after_cursor = calloc(text_after_cursor_len, sizeof(char));
+        char *text_after_cursor = calloc(text_after_cursor_len+1, sizeof(char));
 
         strncpy(text_after_cursor, cur_line->text + buf->cursor_col, text_after_cursor_len);
 
-        text_after_cursor[text_after_cursor_len] = '\0';
+        text_after_cursor[text_after_cursor_len+1] = '\0';
 
         memmove(
             cur_line->text + buf->cursor_col,
@@ -186,8 +185,8 @@ void buffer_new_line(Buffer *buf)
             (text_len - buf->cursor_col - text_after_cursor_len) * sizeof(char)
         );
 
-        cur_line->text[text_after_cursor_len] = '\0';
         cur_line->len -= text_after_cursor_len;
+        cur_line->text[cur_line->len] = '\0';
 
         new_line = line_from(text_after_cursor);
 
@@ -254,8 +253,10 @@ void buffer_delete_text(Buffer *buf)
 
 void buffer_delete_text_under_cursor(Buffer *buf)
 {
-    if (buf->lines[buf->cursor_row]->len > 0)
-        line_delete_at(buf->lines[buf->cursor_row], buf->cursor_col);
+    Line *cur_line = buf->lines[buf->cursor_row];
+
+    if (cur_line->len > 0 && buf->cursor_col < cur_line->len)
+        line_delete_at(cur_line, buf->cursor_col);
 }
 
 void buffer_move_cursor_left(Buffer *buf)
