@@ -158,19 +158,55 @@ Buffer *buffer_from_file(const char *filename)
     return buf;
 }
 
-// TODO: Reimplement this taking in count the row position
-// and doing the proper memory allocation
 void buffer_new_line(Buffer *buf)
 {
     if (buf->cursor_row > buf->len) return;
 
     buffer_grow(buf);
 
+    Line *cur_line = buf->lines[buf->cursor_row];
+
+    Line *new_line = NULL;
+
+    if (cur_line->len > 0 && buf->cursor_col < cur_line->len) {
+        size_t text_len = strlen(cur_line->text);
+
+        size_t text_after_cursor_len = text_len - buf->cursor_col;
+
+        // char text_after_cursor[text_after_cursor_len];
+        char *text_after_cursor = calloc(text_after_cursor_len, sizeof(char));
+
+        strncpy(text_after_cursor, cur_line->text + buf->cursor_col, text_after_cursor_len);
+
+        text_after_cursor[text_after_cursor_len] = '\0';
+
+        memmove(
+            cur_line->text + buf->cursor_col,
+            cur_line->text + buf->cursor_col + text_after_cursor_len,
+            (text_len - buf->cursor_col - text_after_cursor_len) * sizeof(char)
+        );
+
+        cur_line->text[text_after_cursor_len] = '\0';
+        cur_line->len -= text_after_cursor_len;
+
+        new_line = line_from(text_after_cursor);
+
+        free(text_after_cursor);
+    } else {
+        new_line = line_new();
+    }
+
+    memmove(
+        buf->lines + buf->cursor_row + 1,
+        buf->lines + buf->cursor_row,
+        (buf->len - buf->cursor_row) * sizeof(Line *)
+    );
+
+    buf->lines[buf->cursor_row+1] = new_line;
     buf->cursor_row += 1;
     buf->cursor_col = 0;
     buf->cursor_prev_col = buf->cursor_col;
 
-    buf->lines[buf->cursor_row] = line_new();
     buf->len += 1;
 }
 
