@@ -136,8 +136,13 @@ int main(int argc, char **argv)
             if (IsKeyPressed(KEY_X)) buffer_delete_text_under_cursor(buf);
             if (IsKeyPressed(KEY_ZERO)) buffer_move_cursor_line_begin(buf);
 
+            if (IsKeyPressed(KEY_G)) {
+                buffer_move_cursor_begin(buf);
+            }
+
             if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
                 if (IsKeyPressed(KEY_FOUR)) buffer_move_cursor_line_end(buf);
+                if (IsKeyPressed(KEY_G)) buffer_move_cursor_end(buf, font_size);
             }
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);

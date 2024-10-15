@@ -301,6 +301,7 @@ void buffer_move_cursor_up(Buffer *buf, Vector2 font_size)
         buf->cursor_col = buf->cursor_prev_col;
     }
 
+    // TODO: This logic needs to be re-worked
     if (buf->cursor_row * font_size.y <= buf->view.y + 100 && buf->view.y > 0) {
         buf->scroll_row -= 1;
         buf->view.y = buf->scroll_row * font_size.y;
@@ -327,6 +328,7 @@ void buffer_move_cursor_down(Buffer *buf, Vector2 font_size)
         buf->cursor_col = buf->cursor_prev_col;
     }
 
+    // TODO: This logic needs to be re-worked
     if (buf->cursor_row * font_size.y >= (buf->view.height + buf->view.y) - 100) {
         buf->scroll_row += 1;
         buf->view.y = buf->scroll_row * font_size.y;
@@ -343,4 +345,22 @@ void buffer_move_cursor_line_end(Buffer *buf)
 {
     buf->cursor_col = buf->lines[buf->cursor_row]->len;
     buf->cursor_prev_col = buf->cursor_col;
+}
+
+void buffer_move_cursor_begin(Buffer *buf)
+{
+    buf->cursor_row = 0;
+
+    buf->scroll_row = buf->cursor_row;
+    buf->view.y = buf->scroll_row;
+}
+
+void buffer_move_cursor_end(Buffer *buf, Vector2 font_size)
+{
+    if (buf->cursor_row == buf->len-1) return;
+
+    buf->cursor_row = buf->len-1;
+
+    buf->scroll_row = buf->cursor_row;
+    buf->view.y = buf->scroll_row * font_size.y - (buf->view.height - font_size.y*2);
 }

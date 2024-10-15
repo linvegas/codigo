@@ -47,5 +47,7 @@ void buffer_move_cursor_up(Buffer *buf, Vector2 font_size);
 void buffer_move_cursor_down(Buffer *buf, Vector2 font_size);
 void buffer_move_cursor_line_begin(Buffer *buf);
 void buffer_move_cursor_line_end(Buffer *buf);
+void buffer_move_cursor_begin(Buffer *buf);
+void buffer_move_cursor_end(Buffer *buf, Vector2 font_size);
 
 #endif // BUFFER_H
