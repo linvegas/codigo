@@ -60,6 +60,8 @@ int main(int argc, char **argv)
 
     Vector2 font_size = MeasureTextEx(font, " ", font.baseSize, 0);
 
+    bool ignore_insert_mode_key = false;
+
     SetTargetFPS(60);
 
     while(!WindowShouldClose()) {
@@ -126,7 +128,11 @@ int main(int argc, char **argv)
             if (IsKeyReleased(KEY_H)) key_down_timer = 0;
             if (IsKeyReleased(KEY_L)) key_down_timer = 0;
 
-            if (IsKeyPressed(KEY_I)) mode = INSERT;
+            if (IsKeyPressed(KEY_I)) {
+                mode = INSERT;
+                ignore_insert_mode_key = true;
+            }
+
             if (IsKeyPressed(KEY_X)) buffer_delete_text_under_cursor(buf);
             if (IsKeyPressed(KEY_ZERO)) buffer_move_cursor_line_begin(buf);
 
@@ -148,6 +154,11 @@ int main(int argc, char **argv)
             int key = GetCharPressed();
 
             while (key > 0) {
+                if (IsKeyReleased(KEY_I) || ignore_insert_mode_key) {
+                    ignore_insert_mode_key = false;
+                    key = 0;
+                }
+
                 if (key >= 32 && key <= 126) {
                     char s[2];
                     s[0] = (char)key;
