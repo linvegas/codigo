@@ -33,8 +33,10 @@ int main(int argc, char **argv)
 
     SetExitKey(0);
 
+    // TODO: Properly include font in project or
+    // somehow use the system default mono font
     Font font = LoadFontEx(
-        "/usr/share/fonts/OTF/DroidSansMNerdFontMono-Regular.otf",
+        "/usr/share/fonts/OTF/DroidSansMNerdFont-Regular.otf",
         FONT_SIZE, 0, 0
     );
 
@@ -179,7 +181,7 @@ int main(int argc, char **argv)
 
         Rectangle cursor_rect = {
             font_size.x*buf->cursor_col, buf->cursor_row*font_size.y,
-            font_size.x, font_size.y,
+            mode == INSERT ? font_size.x/6 : font_size.x, font_size.y,
         };
 
         camera.offset.y = -(buf->view.y);
@@ -213,7 +215,7 @@ int main(int argc, char **argv)
 
                 // Buggy?? (Aparently not)
                 Color text_color =
-                    col == buf->cursor_col && row == buf->cursor_row
+                    (col == buf->cursor_col && row == buf->cursor_row) && mode != INSERT
                     ? THEME_BG : THEME_FG;
 
                 DrawTextEx(

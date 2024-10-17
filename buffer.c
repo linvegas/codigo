@@ -129,7 +129,10 @@ Buffer *buffer_new(const char *name, Vector2 font_size)
 
 Buffer *buffer_from_file(const char *filename, Vector2 font_size)
 {
-    Buffer *buf = buffer_new("main.c", font_size);
+    const char *file_name = GetFileName(filename);
+
+    Buffer *buf = buffer_new(file_name, font_size);
+
     buf->len = 0;
     buf->lines[0] = NULL;
 
