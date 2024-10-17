@@ -143,6 +143,8 @@ int main(int argc, char **argv)
             if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
                 if (IsKeyPressed(KEY_FOUR)) buffer_move_cursor_line_end(buf);
                 if (IsKeyPressed(KEY_G)) buffer_move_cursor_end(buf, font_size);
+                if (IsKeyPressed(KEY_W)) buffer_move_cursor_next_word(buf);
+                if (IsKeyPressed(KEY_B)) buffer_move_cursor_prev_word(buf);
             }
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);

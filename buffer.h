@@ -33,6 +33,8 @@ typedef struct {
     Rectangle view;
 } Buffer;
 
+#define cur_line(b) ((b)->lines[(b)->cursor_row])
+
 Buffer *buffer_new(const char *name);
 void buffer_grow(Buffer *buf);
 Buffer *buffer_from_file(const char *filename);
@@ -49,5 +51,7 @@ void buffer_move_cursor_line_begin(Buffer *buf);
 void buffer_move_cursor_line_end(Buffer *buf);
 void buffer_move_cursor_begin(Buffer *buf);
 void buffer_move_cursor_end(Buffer *buf, Vector2 font_size);
+void buffer_move_cursor_next_word(Buffer *buf);
+void buffer_move_cursor_prev_word(Buffer *buf);
 
 #endif // BUFFER_H

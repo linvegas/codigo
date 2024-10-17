@@ -213,7 +213,7 @@ void buffer_insert_text(Buffer *buf, const char *text)
 {
     assert(buf->cursor_row < buf->len);
 
-    line_insert_at(buf->lines[buf->cursor_row], buf->cursor_col, text);
+    line_insert_at(cur_line(buf), buf->cursor_col, text);
 
     buf->cursor_col += 1;
     buf->cursor_prev_col = buf->cursor_col;
@@ -235,28 +235,26 @@ void buffer_delete_line(Buffer *buf, Line *line)
 
 void buffer_delete_text(Buffer *buf)
 {
-    if (buf->cursor_col > 0 && buf->lines[buf->cursor_row]->len > 0) {
-        line_delete_at(buf->lines[buf->cursor_row], buf->cursor_col - 1);
+    if (buf->cursor_col > 0 && cur_line(buf)->len > 0) {
+        line_delete_at(cur_line(buf), buf->cursor_col - 1);
 
         buf->cursor_col -= 1;
         buf->cursor_prev_col = buf->cursor_col;
 
-    } else if (buf->lines[buf->cursor_row]->len < 1 && buf->len > 1) {
-        buffer_delete_line(buf, buf->lines[buf->cursor_row]);
+    } else if (cur_line(buf)->len < 1 && buf->len > 1) {
+        buffer_delete_line(buf, cur_line(buf));
 
         if (buf->cursor_row > 0) buf->cursor_row -= 1;
 
-        buf->cursor_col = buf->lines[buf->cursor_row]->len;
+        buf->cursor_col = cur_line(buf)->len;
         buf->cursor_prev_col = buf->cursor_col;
     }
 }
 
 void buffer_delete_text_under_cursor(Buffer *buf)
 {
-    Line *cur_line = buf->lines[buf->cursor_row];
-
-    if (cur_line->len > 0 && buf->cursor_col < cur_line->len)
-        line_delete_at(cur_line, buf->cursor_col);
+    if (cur_line(buf)->len > 0 && buf->cursor_col < cur_line(buf)->len)
+        line_delete_at(cur_line(buf), buf->cursor_col);
 }
 
 void buffer_move_cursor_left(Buffer *buf)
@@ -271,7 +269,7 @@ void buffer_move_cursor_left(Buffer *buf)
 
 void buffer_move_cursor_right(Buffer *buf)
 {
-    size_t cur_line_len = buf->lines[buf->cursor_row]->len;
+    size_t cur_line_len = cur_line(buf)->len;
 
     if (buf->cursor_col >= cur_line_len) {
         buf->cursor_col = cur_line_len;
@@ -289,7 +287,7 @@ void buffer_move_cursor_up(Buffer *buf, Vector2 font_size)
         buf->cursor_row -= 1;
     }
 
-    size_t cur_line_len = buf->lines[buf->cursor_row]->len;
+    size_t cur_line_len = cur_line(buf)->len;
 
     if (cur_line_len == 0) {
         buf->cursor_col = 0;
@@ -316,7 +314,7 @@ void buffer_move_cursor_down(Buffer *buf, Vector2 font_size)
         buf->cursor_row += 1;
     }
 
-    size_t cur_line_len = buf->lines[buf->cursor_row]->len;
+    size_t cur_line_len = cur_line(buf)->len;
 
     if (cur_line_len == 0) {
         buf->cursor_col = 0;
@@ -343,7 +341,7 @@ void buffer_move_cursor_line_begin(Buffer *buf)
 
 void buffer_move_cursor_line_end(Buffer *buf)
 {
-    buf->cursor_col = buf->lines[buf->cursor_row]->len;
+    buf->cursor_col = cur_line(buf)->len;
     buf->cursor_prev_col = buf->cursor_col;
 }
 
@@ -363,4 +361,64 @@ void buffer_move_cursor_end(Buffer *buf, Vector2 font_size)
 
     buf->scroll_row = buf->cursor_row;
     buf->view.y = buf->scroll_row * font_size.y - (buf->view.height - font_size.y*2);
+}
+
+void buffer_move_cursor_next_word(Buffer *buf)
+{
+    char current_char = ' ';
+
+    while (cur_line(buf)->text[buf->cursor_col] != ' ' && current_char != '\n') {
+        if (buf->cursor_col >= cur_line(buf)->len) {
+            buf->cursor_row += 1;
+            buf->cursor_col = 0;
+            current_char = '\n';
+            continue;
+        }
+
+        buf->cursor_col += 1;
+        current_char = ' ';
+    }
+
+    // TODO: I need to organize this...
+    while (
+        (current_char == ' '
+            || (current_char == '\n' && cur_line(buf)->text[buf->cursor_col] == ' ')
+        )
+        && cur_line(buf)->text[buf->cursor_col+1] == ' '
+    ) {
+        buf->cursor_col += 1;
+        current_char = ' ';
+    }
+
+    if (current_char != '\n') buf->cursor_col += 1;
+    buf->cursor_prev_col = buf->cursor_col;
+}
+
+void buffer_move_cursor_prev_word(Buffer *buf)
+{
+    if (buf->cursor_col == 0 && buf->cursor_row == 0) return;
+
+    if (buf->cursor_col == 0) {
+        buf->cursor_row -= 1;
+        buf->cursor_col = cur_line(buf)->len;
+    }
+
+    while (buf->cursor_col > 0 && cur_line(buf)->text[buf->cursor_col-1] == ' ') {
+        buf->cursor_col -= 1;
+    }
+
+    if (buf->cursor_col == 0 && cur_line(buf)->text[buf->cursor_col] == ' ') {
+        buf->cursor_row -= 1;
+        buf->cursor_col = cur_line(buf)->len;
+    }
+
+    while (buf->cursor_col > 0 && cur_line(buf)->text[buf->cursor_col] == ' ') {
+        buf->cursor_col -= 1;
+    }
+
+    while (buf->cursor_col > 0 && cur_line(buf)->text[buf->cursor_col-1] != ' ') {
+        buf->cursor_col -= 1;
+    }
+
+    buf->cursor_prev_col = buf->cursor_col;
 }
