@@ -15,7 +15,7 @@
 #define THEME_LIGHT_GREY GetColor(0x818387ff)
 #define THEME_BLUE GetColor(0x57a5e5ff)
 
-#define FACTOR 70
+#define FACTOR 72
 #define SCR_WIDTH 16 * FACTOR
 #define SCR_HEIGHT 9 * FACTOR
 #define FONT_SIZE 30
@@ -38,14 +38,16 @@ int main(int argc, char **argv)
         FONT_SIZE, 0, 0
     );
 
+    Vector2 font_size = MeasureTextEx(font, " ", font.baseSize, 0);
+
     Buffer *buf = NULL;
 
     if (argc > 1) {
         const char *filename = argv[1];
         // TODO: Check if file exists
-        buf = buffer_from_file(filename);
+        buf = buffer_from_file(filename, font_size);
     } else {
-        buf = buffer_new("");
+        buf = buffer_new("", font_size);
     }
 
     Mode mode = NORMAL;
@@ -58,8 +60,6 @@ int main(int argc, char **argv)
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
-    Vector2 font_size = MeasureTextEx(font, " ", font.baseSize, 0);
-
     bool ignore_insert_mode_key = false;
 
     SetTargetFPS(60);
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     while(!WindowShouldClose()) {
 
         buf->view.width = GetScreenWidth();
-        buf->view.height = GetScreenHeight();
+        buf->view.height = GetScreenHeight() - font_size.y;
 
         // Just DEBUG stuff
         // printf("CURSOR ROW: %ld | ", buf->cursor_row);
@@ -106,20 +106,20 @@ int main(int argc, char **argv)
             if (IsKeyDown(KEY_J)) {
                 key_down_timer += GetFrameTime();
 
-                if (IsKeyPressed(KEY_J)) buffer_move_cursor_down(buf, font_size);
+                if (IsKeyPressed(KEY_J)) buffer_move_cursor_down(buf);
 
                 if (key_down_timer >= 0.2) {
-                    buffer_move_cursor_down(buf, font_size);
+                    buffer_move_cursor_down(buf);
                 }
             }
 
             if (IsKeyDown(KEY_K)) {
                 key_down_timer += GetFrameTime();
 
-                if (IsKeyPressed(KEY_K)) buffer_move_cursor_up(buf, font_size);
+                if (IsKeyPressed(KEY_K)) buffer_move_cursor_up(buf);
 
                 if (key_down_timer >= 0.2) {
-                    buffer_move_cursor_up(buf, font_size);
+                    buffer_move_cursor_up(buf);
                 }
             }
 
@@ -142,15 +142,15 @@ int main(int argc, char **argv)
 
             if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
                 if (IsKeyPressed(KEY_FOUR)) buffer_move_cursor_line_end(buf);
-                if (IsKeyPressed(KEY_G)) buffer_move_cursor_end(buf, font_size);
+                if (IsKeyPressed(KEY_G)) buffer_move_cursor_end(buf);
                 if (IsKeyPressed(KEY_W)) buffer_move_cursor_next_word(buf);
                 if (IsKeyPressed(KEY_B)) buffer_move_cursor_prev_word(buf);
             }
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);
             if (IsKeyPressed(KEY_LEFT))  buffer_move_cursor_left(buf);
-            if (IsKeyPressed(KEY_DOWN))  buffer_move_cursor_down(buf, font_size);
-            if (IsKeyPressed(KEY_UP))    buffer_move_cursor_up(buf, font_size);
+            if (IsKeyPressed(KEY_DOWN))  buffer_move_cursor_down(buf);
+            if (IsKeyPressed(KEY_UP))    buffer_move_cursor_up(buf);
 
             if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete_text(buf);
             if (IsKeyPressed(KEY_ENTER))     buffer_new_line(buf);
@@ -183,6 +183,7 @@ int main(int argc, char **argv)
         };
 
         camera.offset.y = -(buf->view.y);
+        camera.offset.x = -(buf->view.x);
 
         BeginDrawing();
 

@@ -31,26 +31,30 @@ typedef struct {
     size_t scroll_col;
     const char* name;
     Rectangle view;
+    Vector2 font_size;
 } Buffer;
 
 #define cur_line(b) ((b)->lines[(b)->cursor_row])
 
-Buffer *buffer_new(const char *name);
 void buffer_grow(Buffer *buf);
-Buffer *buffer_from_file(const char *filename);
+
+Buffer *buffer_new(const char *name, Vector2 font_size);
+Buffer *buffer_from_file(const char *filename, Vector2 font_size);
+
 void buffer_new_line(Buffer *buf);
 void buffer_insert_text(Buffer *buf, const char *text);
 void buffer_delete_line(Buffer *buf, Line *line);
 void buffer_delete_text(Buffer *buf);
 void buffer_delete_text_under_cursor(Buffer *buf);
+void buffer_update_view(Buffer *buf);
 void buffer_move_cursor_left(Buffer *buf);
 void buffer_move_cursor_right(Buffer *buf);
-void buffer_move_cursor_up(Buffer *buf, Vector2 font_size);
-void buffer_move_cursor_down(Buffer *buf, Vector2 font_size);
+void buffer_move_cursor_up(Buffer *buf);
+void buffer_move_cursor_down(Buffer *buf);
 void buffer_move_cursor_line_begin(Buffer *buf);
 void buffer_move_cursor_line_end(Buffer *buf);
 void buffer_move_cursor_begin(Buffer *buf);
-void buffer_move_cursor_end(Buffer *buf, Vector2 font_size);
+void buffer_move_cursor_end(Buffer *buf);
 void buffer_move_cursor_next_word(Buffer *buf);
 void buffer_move_cursor_prev_word(Buffer *buf);
 

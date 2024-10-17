@@ -86,7 +86,20 @@ void line_free(Line *line)
     free(line);
 }
 
-Buffer *buffer_new(const char *name)
+void buffer_grow(Buffer *buf)
+{
+    while (buf->len >= buf->cap) {
+        size_t new_capacity = buf->cap * 2;
+
+        buf->lines = (Line **)realloc(buf->lines, new_capacity * sizeof(Line));
+
+        assert(buf->lines != NULL && "buf->lines realloc failed");
+
+        buf->cap = new_capacity;
+    }
+}
+
+Buffer *buffer_new(const char *name, Vector2 font_size)
 {
     Buffer *buf = (Buffer *)malloc(sizeof(Buffer));
 
@@ -109,26 +122,14 @@ Buffer *buffer_new(const char *name)
     buf->name = (name == NULL || *name == '\0') ? "[NO NAME]" : name;
 
     buf->view = (Rectangle){0};
+    buf->font_size = font_size;
 
     return buf;
 }
 
-void buffer_grow(Buffer *buf)
+Buffer *buffer_from_file(const char *filename, Vector2 font_size)
 {
-    while (buf->len >= buf->cap) {
-        size_t new_capacity = buf->cap * 2;
-
-        buf->lines = (Line **)realloc(buf->lines, new_capacity * sizeof(Line));
-
-        assert(buf->lines != NULL && "buf->lines realloc failed");
-
-        buf->cap = new_capacity;
-    }
-}
-
-Buffer *buffer_from_file(const char *filename)
-{
-    Buffer *buf = buffer_new("main.c");
+    Buffer *buf = buffer_new("main.c", font_size);
     buf->len = 0;
     buf->lines[0] = NULL;
 
@@ -257,6 +258,34 @@ void buffer_delete_text_under_cursor(Buffer *buf)
         line_delete_at(cur_line(buf), buf->cursor_col);
 }
 
+void buffer_update_view(Buffer *buf)
+{
+    buf->scroll_row = buf->cursor_row;
+    buf->scroll_col = buf->cursor_col;
+
+    float margin = buf->font_size.y * 0;
+
+    // Cursor is close to bottom
+    if ((buf->cursor_row + 1) * buf->font_size.y >= (buf->view.height + buf->view.y) - margin) {
+        buf->view.y = buf->scroll_row * buf->font_size.y - (buf->view.height - buf->font_size.y) + margin;
+    }
+
+    // Cursor is close to top
+    if (buf->cursor_row * buf->font_size.y <= buf->view.y + margin && buf->view.y > 0) {
+        buf->view.y = buf->scroll_row * buf->font_size.y - margin;
+    }
+
+    // Cursor is close to right
+    if ((buf->cursor_col + 1) * buf->font_size.x >= (buf->view.width + buf->view.x)) {
+        buf->view.x = buf->scroll_col * buf->font_size.x - (buf->view.width - buf->font_size.x);
+    }
+
+    // Cursor is close to left
+    if (buf->cursor_col * buf->font_size.x <= buf->view.x && buf->view.x > 0) {
+        buf->view.x = buf->scroll_col * buf->font_size.x;
+    }
+}
+
 void buffer_move_cursor_left(Buffer *buf)
 {
     if (buf->cursor_col == 0) {
@@ -265,6 +294,8 @@ void buffer_move_cursor_left(Buffer *buf)
         buf->cursor_col -= 1;
         buf->cursor_prev_col = buf->cursor_col;
     }
+
+    buffer_update_view(buf);
 }
 
 void buffer_move_cursor_right(Buffer *buf)
@@ -277,9 +308,11 @@ void buffer_move_cursor_right(Buffer *buf)
         buf->cursor_col += 1;
         buf->cursor_prev_col = buf->cursor_col;
     }
+
+    buffer_update_view(buf);
 }
 
-void buffer_move_cursor_up(Buffer *buf, Vector2 font_size)
+void buffer_move_cursor_up(Buffer *buf)
 {
     if (buf->cursor_row == 0) {
         buf->cursor_row = 0;
@@ -300,13 +333,14 @@ void buffer_move_cursor_up(Buffer *buf, Vector2 font_size)
     }
 
     // TODO: This logic needs to be re-worked
-    if (buf->cursor_row * font_size.y <= buf->view.y + 100 && buf->view.y > 0) {
-        buf->scroll_row -= 1;
-        buf->view.y = buf->scroll_row * font_size.y;
-    }
+    // if (buf->cursor_row * font_size.y <= buf->view.y + 100 && buf->view.y > 0) {
+    //     buf->scroll_row -= 1;
+    //     buf->view.y = buf->scroll_row * font_size.y;
+    // }
+    buffer_update_view(buf);
 }
 
-void buffer_move_cursor_down(Buffer *buf, Vector2 font_size)
+void buffer_move_cursor_down(Buffer *buf)
 {
     if (buf->cursor_row >= buf->len - 1) {
         buf->cursor_row = buf->len - 1;
@@ -327,40 +361,45 @@ void buffer_move_cursor_down(Buffer *buf, Vector2 font_size)
     }
 
     // TODO: This logic needs to be re-worked
-    if (buf->cursor_row * font_size.y >= (buf->view.height + buf->view.y) - 100) {
-        buf->scroll_row += 1;
-        buf->view.y = buf->scroll_row * font_size.y;
-    }
+    //  if (buf->cursor_row * font_size.y >= (buf->view.height + buf->view.y) - 100) {
+    //      buf->scroll_row += 1;
+    //      buf->view.y = buf->scroll_row * font_size.y;
+    //  }
+    buffer_update_view(buf);
 }
 
 void buffer_move_cursor_line_begin(Buffer *buf)
 {
     buf->cursor_col = 0;
     buf->cursor_prev_col = buf->cursor_col;
+    buffer_update_view(buf);
 }
 
 void buffer_move_cursor_line_end(Buffer *buf)
 {
     buf->cursor_col = cur_line(buf)->len;
     buf->cursor_prev_col = buf->cursor_col;
+    buffer_update_view(buf);
 }
 
 void buffer_move_cursor_begin(Buffer *buf)
 {
     buf->cursor_row = 0;
 
-    buf->scroll_row = buf->cursor_row;
-    buf->view.y = buf->scroll_row;
+    // buf->scroll_row = buf->cursor_row;
+    // buf->view.y = buf->scroll_row;
+    buffer_update_view(buf);
 }
 
-void buffer_move_cursor_end(Buffer *buf, Vector2 font_size)
+void buffer_move_cursor_end(Buffer *buf)
 {
     if (buf->cursor_row == buf->len-1) return;
 
     buf->cursor_row = buf->len-1;
 
-    buf->scroll_row = buf->cursor_row;
-    buf->view.y = buf->scroll_row * font_size.y - (buf->view.height - font_size.y*2);
+    // buf->scroll_row = buf->cursor_row;
+    // buf->view.y = buf->scroll_row * font_size.y - (buf->view.height - font_size.y);
+    buffer_update_view(buf);
 }
 
 void buffer_move_cursor_next_word(Buffer *buf)
@@ -392,6 +431,8 @@ void buffer_move_cursor_next_word(Buffer *buf)
 
     if (current_char != '\n') buf->cursor_col += 1;
     buf->cursor_prev_col = buf->cursor_col;
+
+    buffer_update_view(buf);
 }
 
 void buffer_move_cursor_prev_word(Buffer *buf)
@@ -421,4 +462,6 @@ void buffer_move_cursor_prev_word(Buffer *buf)
     }
 
     buf->cursor_prev_col = buf->cursor_col;
+
+    buffer_update_view(buf);
 }
