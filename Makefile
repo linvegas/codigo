@@ -7,3 +7,6 @@ build: main.c
 
 run: ./codigo
 	./codigo $(ARGS)
+
+tags:
+	ctags --c-kinds=+p --fields=+iaS --format=2 *.h /usr/include/raylib.h
