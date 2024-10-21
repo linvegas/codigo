@@ -162,6 +162,20 @@ Buffer *buffer_from_file(const char *filename, Vector2 font_size)
     return buf;
 }
 
+void buffer_save_to_file(Buffer *buf, const char *filename)
+{
+    FILE *file = fopen(filename, "w");
+
+    assert(file != NULL);
+
+    for (size_t row = 0; row < buf->len; row++) {
+        fwrite(buf->lines[row]->text, sizeof(char), buf->lines[row]->len, file);
+        fputc('\n', file);
+    }
+
+    fclose(file);
+}
+
 void buffer_new_line(Buffer *buf)
 {
     if (buf->cursor_row > buf->len) return;
@@ -219,7 +233,7 @@ void buffer_insert_text(Buffer *buf, const char *text)
 
     line_insert_at(cur_line(buf), buf->cursor_col, text);
 
-    buf->cursor_col += 1;
+    buf->cursor_col += strlen(text);
     buf->cursor_prev_col = buf->cursor_col;
 }
 

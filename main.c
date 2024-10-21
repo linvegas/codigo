@@ -19,6 +19,7 @@
 #define SCR_WIDTH 16 * FACTOR
 #define SCR_HEIGHT 9 * FACTOR
 #define FONT_SIZE 30
+#define TAB_CHARS "    "
 
 typedef enum {
     NORMAL,
@@ -148,6 +149,12 @@ int main(int argc, char **argv)
                 if (IsKeyPressed(KEY_W)) buffer_move_cursor_next_word(buf);
                 if (IsKeyPressed(KEY_B)) buffer_move_cursor_prev_word(buf);
             }
+
+            if (IsKeyPressed(KEY_F2)) {
+                const char *filename = "output-file";
+                buffer_save_to_file(buf,filename);
+                printf("File was saved: %s\n", filename);
+            }
         } else {
             if (IsKeyPressed(KEY_RIGHT)) buffer_move_cursor_right(buf);
             if (IsKeyPressed(KEY_LEFT))  buffer_move_cursor_left(buf);
@@ -156,7 +163,18 @@ int main(int argc, char **argv)
 
             if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete_text(buf);
             if (IsKeyPressed(KEY_ENTER))     buffer_new_line(buf);
-            if (IsKeyPressed(KEY_ESCAPE))    mode = NORMAL;
+            if (IsKeyPressed(KEY_TAB))       buffer_insert_text(buf, TAB_CHARS);
+            if (IsKeyPressed(KEY_ESCAPE))    {
+                mode = NORMAL;
+                buffer_move_cursor_left(buf);
+            }
+
+            if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) {
+                if (IsKeyPressed(KEY_C)) {
+                    mode = NORMAL;
+                    buffer_move_cursor_left(buf);
+                }
+            }
         }
 
         if (mode == INSERT) {

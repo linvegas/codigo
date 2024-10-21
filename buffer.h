@@ -41,6 +41,7 @@ void buffer_grow(Buffer *buf);
 Buffer *buffer_new(const char *name, Vector2 font_size);
 Buffer *buffer_from_file(const char *filename, Vector2 font_size);
 
+void buffer_save_to_file(Buffer *buf, const char *filename);
 void buffer_new_line(Buffer *buf);
 void buffer_insert_text(Buffer *buf, const char *text);
 void buffer_delete_line(Buffer *buf, Line *line);
