@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <ctype.h>
 
 #define FONT_SIZE 33
 #define TAB_SIZE 4
@@ -14,6 +15,12 @@
 #define COLOR_BG   0x0e1415ff
 #define COLOR_FG   0xcececeff
 #define COLOR_BLUE 0x007accff
+
+#define TODO(msg) \
+    do { \
+        fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, msg); \
+        abort(); \
+    } while(0)
 
 typedef enum {
     MODE_NORMAL = 0,
@@ -153,8 +160,8 @@ void doc_update_scroll(Document *d, Vector2 font_size)
 
     if (cursor_pos.x < d->scroll.x)
         d->scroll.x = cursor_pos.x;
-    else if (cursor_pos.x + font_size.x > d->scroll.x + GetScreenHeight())
-        d->scroll.x = cursor_pos.x + font_size.x - GetScreenHeight();
+    else if (cursor_pos.x + font_size.x > d->scroll.x + GetScreenWidth())
+        d->scroll.x = cursor_pos.x + font_size.x - GetScreenWidth();
 
     if (cursor_pos.y < d->scroll.y)
         d->scroll.y = cursor_pos.y;
@@ -351,6 +358,65 @@ void doc_new_line_above(Document *d)
     d->index = line_start;
 }
 
+void doc_move_next_word(Document *d)
+{
+    if (d->index >= d->text.len) return;
+
+    size_t next_word = d->index;
+
+    // Cursor is on top of characters
+    while (next_word < d->text.len && !isspace(d->text.data[next_word]))
+    {
+        next_word += 1;
+    }
+
+    // Cursor reached empty line
+    if (
+        next_word < d->text.len &&
+        d->text.data[next_word] == '\n' && d->text.data[next_word+1] == '\n'
+    ) {
+        next_word += 1;
+        d->index = next_word;
+        return;
+    }
+
+    // Cursor is on top of whitespace
+    while (next_word < d->text.len && isspace(d->text.data[next_word]))
+    {
+        next_word += 1;
+    }
+
+    d->index = next_word;
+}
+
+void doc_move_prev_word(Document *d)
+{
+    if (d->index < 1) return;
+
+    size_t prev_word = d->index;
+
+    // Cursor is on top of whitespace
+    while (prev_word > 0 && isspace(d->text.data[prev_word-1]))
+    {
+        if (
+            prev_word >= 2 &&
+            d->text.data[prev_word-1] == '\n' && isspace(d->text.data[prev_word-2])
+        ) {
+            d->index = prev_word-1;
+            return;
+        }
+        prev_word -= 1;
+    }
+
+    // Cursor is on top of characters
+    while (prev_word > 0 && !isspace(d->text.data[prev_word-1]))
+    {
+        prev_word -= 1;
+    }
+
+    d->index = prev_word;
+}
+
 void draw_cells(Font font, const char *text, Vector2 font_size, Vector2 scroll)
 {
     Vector2 cell_pos = {-scroll.x, -scroll.y};
@@ -419,7 +485,7 @@ int main(int argc, char **argv)
     EnableEventWaiting();
 
     float key_down_timer = 0.0;
-    float key_down_repeat_time = 0.2;
+    float key_down_repeat_time = 0.4;
 
     while (!WindowShouldClose())
     {
@@ -477,6 +543,9 @@ int main(int argc, char **argv)
 
             if (IsKeyDown(KEY_RIGHT_SHIFT) || IsKeyDown(KEY_LEFT_SHIFT))
             {
+                if (IsKeyPressed(KEY_W)) doc_move_next_word(&doc);
+                if (IsKeyPressed(KEY_B)) doc_move_prev_word(&doc);
+
                 if (IsKeyPressed(KEY_A))
                 {
                     doc_move_line_end(&doc);
