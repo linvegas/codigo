@@ -5,11 +5,12 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+#include <assert.h>
 
 #define FONT_SIZE 33
 #define TAB_SIZE 4
 #define CODEPOINT_LEN 250
-#define STRING_CAP 1024*24
+#define STRING_INIT_CAP (1024*4)
 
 // Inspired by alabaster.nvim colorscheme
 // https://sr.ht/~p00f/alabaster.nvim/
@@ -33,13 +34,31 @@ typedef enum {
 } Mode;
 
 typedef struct {
-    char   data[STRING_CAP];
+    char  *data;
     size_t len;
+    size_t cap;
 } String;
+
+void string_check_capacity(String *s)
+{
+    if (s->len >= s->cap)
+    {
+        if (s->cap == 0) s->cap = STRING_INIT_CAP;
+
+        while (s->len >= s->cap) s->cap *= 2;
+
+        void *buf = realloc(s->data, s->cap * sizeof(*s->data));
+        assert(buf != NULL && "Failed to realloc string");
+
+        s->data = (char*)buf;
+    }
+}
 
 void string_init(String *s)
 {
-    memset(s, 0, sizeof(char)*STRING_CAP);
+    string_check_capacity(s);
+    memset(s->data, 0, sizeof(char)*s->cap);
+    s->len = 0;
 }
 
 int string_from_file(String *s, const char *file_path)
@@ -71,15 +90,18 @@ int string_from_file(String *s, const char *file_path)
 
     rewind(file);
 
-    size_t buffer_len = fread(s->data, 1, (size_t)file_len ,file);
+    s->len = (size_t)file_len;
+    string_check_capacity(s);
 
-    if (ferror(file) && !feof(file)) {
+    size_t buffer_len = fread(s->data, sizeof(char), (size_t)file_len ,file);
+
+    if (ferror(file)) {
         fprintf(stderr, "[ERROR] Tried to read '%s': %s\n", file_path, strerror(errno));
         fclose(file);
         return -1;
     }
 
-    s->data[buffer_len+1] = '\0';
+    s->data[buffer_len] = '\0';
     s->len = buffer_len;
 
     fclose(file);
@@ -89,11 +111,14 @@ int string_from_file(String *s, const char *file_path)
 
 void string_insert(String *s, size_t idx, char c)
 {
-    if (idx <= s->len && s->len < STRING_CAP)
+    if (idx <= s->len)
     {
-        memmove(s->data + idx + 1, s->data + idx, s->len - idx);
-        s->data[idx] = c;
         s->len += 1;
+        string_check_capacity(s);
+
+        memmove(s->data + idx + 1, s->data + idx, s->len - idx - 1);
+
+        s->data[idx] = c;
         s->data[s->len] = '\0';
     }
 }
@@ -106,6 +131,12 @@ void string_delete(String *s, size_t idx)
         s->len -= 1;
         s->data[s->len] = '\0';
     }
+}
+
+void string_info(String *s)
+{
+    printf("len = %lu\n", s->len);
+    printf("cap = %lu\n", s->cap);
 }
 
 typedef struct {
@@ -126,6 +157,7 @@ void doc_empty(Document *d)
 void doc_load_file(Document *d, const char *file_path)
 {
     String s = {0};
+    // TODO: Check the errors
     string_from_file(&s, file_path);
     d->name = file_path;
     d->text = s;
