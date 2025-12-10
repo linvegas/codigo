@@ -140,350 +140,320 @@ void string_info(String *s)
 }
 
 typedef struct {
-    String  text;
-    size_t  index;
+    const char *filepath;
+    String text;
+    size_t index;
     Vector2 scroll;
-    const char *name;
-} Document;
+} Buffer;
 
-void doc_empty(Document *d)
+void buffer_empty(Buffer *b)
 {
     String s = {0};
     string_init(&s);
-    d->name = "Untitled";
-    d->text = s;
+    b->filepath = "Untitled";
+    b->text = s;
 }
 
-void doc_load_file(Document *d, const char *file_path)
+void buffer_load_from_file(Buffer *b, const char *filepath)
 {
     String s = {0};
     // TODO: Check the errors
-    string_from_file(&s, file_path);
-    d->name = file_path;
-    d->text = s;
+    string_from_file(&s, filepath);
+    b->filepath = filepath;
+    b->text = s;
 }
 
-size_t doc_get_col(Document d)
+size_t buffer_get_col(Buffer b)
 {
     size_t col = 0;
 
-    for (size_t i = 0; i < d.index; i++)
+    for (size_t i = 0; i < b.index; i++)
     {
-        if ((d.text.data[i] & 0xC0) != 0x80) col += 1; // Skipping utf-8 cotinuation bytes
-        if (d.text.data[i] == '\n') col = 0;
+        if ((b.text.data[i] & 0xC0) != 0x80) col += 1; // Skipping utf-8 cotinuation bytes
+        if (b.text.data[i] == '\n') col = 0;
     }
 
     return col;
 }
 
-size_t doc_get_row(Document d)
+size_t buffer_get_row(Buffer b)
 {
     size_t row = 0;
 
-    for (size_t i = 0; i < d.index; i++)
+    for (size_t i = 0; i < b.index; i++)
     {
-        if (d.text.data[i] == '\n') row += 1;
+        if (b.text.data[i] == '\n') row += 1;
     }
 
     return row;
 }
 
-void doc_update_scroll(Document *d, Vector2 font_size)
+void buffer_update_scroll(Buffer *b, Vector2 font_size)
 {
     Vector2 cursor_pos = {
-        doc_get_col(*d) * font_size.x,
-        doc_get_row(*d) * font_size.y
+        buffer_get_col(*b) * font_size.x,
+        buffer_get_row(*b) * font_size.y
     };
 
-    if (cursor_pos.x < d->scroll.x)
-        d->scroll.x = cursor_pos.x;
-    else if (cursor_pos.x + font_size.x > d->scroll.x + GetScreenWidth())
-        d->scroll.x = cursor_pos.x + font_size.x - GetScreenWidth();
+    if (cursor_pos.x < b->scroll.x)
+        b->scroll.x = cursor_pos.x;
+    else if (cursor_pos.x + font_size.x > b->scroll.x + GetScreenWidth())
+        b->scroll.x = cursor_pos.x + font_size.x - GetScreenWidth();
 
-    if (cursor_pos.y < d->scroll.y)
-        d->scroll.y = cursor_pos.y;
-    else if (cursor_pos.y + font_size.y > d->scroll.y + GetScreenHeight())
-        d->scroll.y = cursor_pos.y + font_size.y - GetScreenHeight();
+    if (cursor_pos.y < b->scroll.y)
+        b->scroll.y = cursor_pos.y;
+    else if (cursor_pos.y + font_size.y > b->scroll.y + GetScreenHeight())
+        b->scroll.y = cursor_pos.y + font_size.y - GetScreenHeight();
 }
 
-void doc_insert(Document *d, char c)
+void buffer_insert(Buffer *b, char c)
 {
-    string_insert(&d->text, d->index, c);
-    d->index += 1;
+    string_insert(&b->text, b->index, c);
+    b->index += 1;
 }
 
-void doc_delete(Document *d)
+void buffer_delete(Buffer *b)
 {
-    if (d->index < 1) return;
+    if (b->index < 1) return;
 
-    size_t char_start = d->index - 1;
+    size_t char_start = b->index - 1;
 
-    while (char_start > 0 && (d->text.data[char_start] & 0xC0) == 0x80)
+    while (char_start > 0 && (b->text.data[char_start] & 0xC0) == 0x80)
         char_start -= 1;
 
     int byte_len = 0;
-    GetCodepoint(&d->text.data[char_start], &byte_len);
+    GetCodepoint(&b->text.data[char_start], &byte_len);
 
     for (int i = 0; i < byte_len; i++)
-        string_delete(&d->text, char_start + 1);
+        string_delete(&b->text, char_start + 1);
 
-    d->index = char_start;
+    b->index = char_start;
 }
 
-void doc_move_right(Document *d)
+void buffer_move_right(Buffer *b)
 {
-    if (d->index >= d->text.len) return;
+    if (b->index >= b->text.len) return;
 
-    d->index += 1;
+    b->index += 1;
 
     // Properly skip UTF-8 bytes
-    while (d->index < d->text.len && (d->text.data[d->index] & 0xC0) == 0x80)
-        d->index += 1;
+    while (b->index < b->text.len && (b->text.data[b->index] & 0xC0) == 0x80)
+        b->index += 1;
 }
 
-void doc_move_left(Document *d)
+void buffer_move_left(Buffer *b)
 {
-    if (d->index < 1) return;
+    if (b->index < 1) return;
 
-    d->index -= 1;
+    b->index -= 1;
 
     // Properly skip UTF-8 bytes
-    while (d->index > 0 && (d->text.data[d->index] & 0xC0) == 0x80)
-        d->index -= 1;
+    while (b->index > 0 && (b->text.data[b->index] & 0xC0) == 0x80)
+        b->index -= 1;
 }
 
-size_t doc_get_line_len(Document d, size_t pos)
+size_t buffer_get_line_len(Buffer b, size_t pos)
 {
-    if (pos >= d.text.len) return 0;
+    if (pos >= b.text.len) return 0;
 
     size_t line_begin = pos;
 
-    while (line_begin > 0 && d.text.data[line_begin-1] != '\n') line_begin--;
+    while (line_begin > 0 && b.text.data[line_begin-1] != '\n') line_begin--;
 
     size_t line_end = pos;
 
-    while (line_end < d.text.len && d.text.data[line_end] != '\n') line_end++;
+    while (line_end < b.text.len && b.text.data[line_end] != '\n') line_end++;
 
     return line_end - line_begin;
 }
 
-void doc_move_down(Document *d)
+void buffer_move_down(Buffer *b)
 {
-    size_t line_end = d->index;
-    size_t col = doc_get_col(*d);
+    size_t line_end = b->index;
+    size_t col = buffer_get_col(*b);
 
-    while (line_end < d->text.len && d->text.data[line_end] != '\n') line_end += 1;
+    while (line_end < b->text.len && b->text.data[line_end] != '\n') line_end += 1;
 
-    if (line_end >= d->text.len) return;
+    if (line_end >= b->text.len) return;
 
     size_t new_index = line_end + 1;
 
     size_t current_col = 0;
 
-    while (new_index < d->text.len && d->text.data[new_index] != '\n' && current_col < col)
+    while (new_index < b->text.len && b->text.data[new_index] != '\n' && current_col < col)
     {
-        if ((d->text.data[new_index] & 0xC0) != 0x80) current_col++;
+        if ((b->text.data[new_index] & 0xC0) != 0x80) current_col++;
         new_index++;
     }
 
-    while (new_index < d->text.len && (d->text.data[new_index] & 0xC0) == 0x80)
+    while (new_index < b->text.len && (b->text.data[new_index] & 0xC0) == 0x80)
     {
         new_index++;
     }
 
-    d->index = new_index;
-
-    // size_t line_bellow_len = doc_get_line_len(*d, line_end+1);
-
-    // if (col < line_bellow_len)
-    //     d->index = (line_end+1) + col;
-    // else
-    //     d->index = (line_end+1) + line_bellow_len;
+    b->index = new_index;
 }
 
-void doc_move_up(Document *d)
+void buffer_move_up(Buffer *b)
 {
-    size_t line_begin = d->index;
-    size_t col = doc_get_col(*d);
+    size_t line_begin = b->index;
+    size_t col = buffer_get_col(*b);
 
-    while (line_begin > 0 && d->text.data[line_begin-1] != '\n') line_begin -= 1;
+    while (line_begin > 0 && b->text.data[line_begin-1] != '\n') line_begin -= 1;
 
     if (line_begin == 0) return;
 
     size_t line_above_start = line_begin - 1;
-    while (line_above_start > 0 && d->text.data[line_above_start-1] != '\n') line_above_start -= 1;
+    while (line_above_start > 0 && b->text.data[line_above_start-1] != '\n') line_above_start -= 1;
 
     size_t new_index = line_above_start;
     size_t current_col = 0;
 
     while (new_index < line_begin - 1 && current_col < col)
     {
-        if ((d->text.data[new_index] & 0xC0) != 0x80) current_col++;
+        if ((b->text.data[new_index] & 0xC0) != 0x80) current_col++;
         new_index++;
     }
 
-    while (new_index < d->text.len && (d->text.data[new_index] & 0xC0) == 0x80)
+    while (new_index < b->text.len && (b->text.data[new_index] & 0xC0) == 0x80)
     {
         new_index++;
     }
 
-    d->index = new_index;
-
-    // size_t line_above_len = doc_get_line_len(*d, line_begin-1);
-
-    // if (col < line_above_len)
-    //     d->index = (line_begin-1) - (line_above_len - col);
-    // else
-    //     d->index = line_begin - 1;
+    b->index = new_index;
 }
 
-void doc_move_line_begin(Document *d)
+void buffer_move_line_begin(Buffer *b)
 {
-    if (d->index == 0) return;
+    if (b->index == 0) return;
 
-    size_t diff = d->index;
+    size_t diff = b->index;
 
-    for (size_t i = d->index; i > 0; i--)
+    for (size_t i = b->index; i > 0; i--)
     {
-        if (d->text.data[i-1] == '\n') break;
+        if (b->text.data[i-1] == '\n') break;
 
         diff -= 1;
     }
 
-    d->index = diff;
+    b->index = diff;
 }
 
-void doc_move_line_end(Document *d)
+void buffer_move_line_end(Buffer *b)
 {
-    if (d->index == d->text.len) return;
+    if (b->index == b->text.len) return;
 
-    size_t plus = d->index;
+    size_t plus = b->index;
 
-    for (size_t i = d->index; i < d->text.len; i++)
+    for (size_t i = b->index; i < b->text.len; i++)
     {
-        if (d->text.data[i] == '\n') break;
+        if (b->text.data[i] == '\n') break;
         plus += 1;
     }
 
-    d->index = plus;
+    b->index = plus;
 }
 
-void doc_new_line_bellow(Document *d)
+void buffer_new_line_bellow(Buffer *b)
 {
-    size_t line_end = d->index;
+    size_t line_end = b->index;
 
-    for (size_t i = d->index; i < d->text.len; i++)
+    for (size_t i = b->index; i < b->text.len; i++)
     {
         line_end = i;
-        if (d->text.data[i] == '\n') break;
+        if (b->text.data[i] == '\n') break;
     }
 
-    string_insert(&d->text, line_end, '\n');
-    d->index = line_end+1;
+    string_insert(&b->text, line_end, '\n');
+    b->index = line_end+1;
 }
 
-void doc_new_line_above(Document *d)
+void buffer_new_line_above(Buffer *b)
 {
-    size_t line_start = d->index;
+    size_t line_start = b->index;
 
-    while (line_start > 0 && d->text.data[line_start-1] != '\n')
+    while (line_start > 0 && b->text.data[line_start-1] != '\n')
     {
         line_start -= 1;
     }
 
-    string_insert(&d->text, line_start, '\n');
-    d->index = line_start;
+    string_insert(&b->text, line_start, '\n');
+    b->index = line_start;
 }
 
-void doc_move_next_word(Document *d)
+void buffer_move_next_word(Buffer *b)
 {
-    if (d->index >= d->text.len) return;
+    if (b->index >= b->text.len) return;
 
-    size_t next_word = d->index;
+    size_t next_word = b->index;
 
     // Cursor is on top of characters
-    while (next_word < d->text.len && !isspace(d->text.data[next_word]))
+    while (next_word < b->text.len && !isspace(b->text.data[next_word]))
     {
         next_word += 1;
     }
 
     // Cursor reached empty line
     if (
-        next_word < d->text.len &&
-        d->text.data[next_word] == '\n' && d->text.data[next_word+1] == '\n'
+        next_word < b->text.len &&
+        b->text.data[next_word] == '\n' && b->text.data[next_word+1] == '\n'
     ) {
         next_word += 1;
-        d->index = next_word;
+        b->index = next_word;
         return;
     }
 
     // Cursor is on top of whitespace
-    while (next_word < d->text.len && isspace(d->text.data[next_word]))
+    while (next_word < b->text.len && isspace(b->text.data[next_word]))
     {
         next_word += 1;
     }
 
-    d->index = next_word;
+    b->index = next_word;
 }
 
-void doc_move_prev_word(Document *d)
+void buffer_move_prev_word(Buffer *b)
 {
-    if (d->index < 1) return;
+    if (b->index < 1) return;
 
-    size_t prev_word = d->index;
+    size_t prev_word = b->index;
 
     // Cursor is on top of whitespace
-    while (prev_word > 0 && isspace(d->text.data[prev_word-1]))
+    while (prev_word > 0 && isspace(b->text.data[prev_word-1]))
     {
         if (
             prev_word >= 2 &&
-            d->text.data[prev_word-1] == '\n' && isspace(d->text.data[prev_word-2])
+            b->text.data[prev_word-1] == '\n' && isspace(b->text.data[prev_word-2])
         ) {
-            d->index = prev_word-1;
+            b->index = prev_word-1;
             return;
         }
         prev_word -= 1;
     }
 
     // Cursor is on top of characters
-    while (prev_word > 0 && !isspace(d->text.data[prev_word-1]))
+    while (prev_word > 0 && !isspace(b->text.data[prev_word-1]))
     {
         prev_word -= 1;
     }
 
-    d->index = prev_word;
+    b->index = prev_word;
 }
 
-void draw_cells(Font font, const char *text, Vector2 origin, Vector2 font_size, Vector2 scroll)
+void draw_characters(Font font, const char *text, Vector2 origin, Vector2 font_size, Vector2 scroll)
 {
-    // Vector2 cell_pos = {-scroll.x, -scroll.y};
     Vector2 cell_pos = {-scroll.x, -scroll.y};
     cell_pos = Vector2Add(cell_pos, origin);
 
-    // int first_visible_line = (int)(scroll.y / font_size.y);
-    // int last_visible_line = (int)((scroll.y + GetScreenHeight()) / font_size.y) + 1;
-
     size_t i = 0;
-    // int current_line = 0;
 
-    // while (text[i] != '\0' && current_line < first_visible_line)
-    // {
-    //     if (text[i] == '\n') current_line += 1;
-    //     i += 1;
-    // }
-
-    // cell_pos.y = current_line * font_size.y - scroll.y;
-
-    while (text[i] != '\0'/* && current_line <= last_visible_line*/)
+    while (text[i] != '\0')
     {
         int byte_len = 0;
         int codepoint = GetCodepoint(&text[i], &byte_len);
 
         if (codepoint == '\n')
         {
-            // cell_pos.x = 0;
-            // cell_pos.y += font_size.y;
-            // current_line += 1;
             cell_pos.x = -scroll.x + origin.x;
             cell_pos.y += font_size.y;
             i += byte_len;
@@ -500,8 +470,9 @@ void draw_cells(Font font, const char *text, Vector2 origin, Vector2 font_size, 
 int main(int argc, char **argv)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    // SetTraceLogLevel(LOG_NONE);
     InitWindow(800, 600, "Codigo");
+    EnableEventWaiting();
+    SetTargetFPS(75);
     SetExitKey(0);
 
     const char *font_path = "resources/DepartureMono/DepartureMono-Regular.otf";
@@ -509,22 +480,18 @@ int main(int argc, char **argv)
 
     Vector2 font_size = MeasureTextEx(font, "X", FONT_SIZE, 0);
 
-    Document doc = {0};
-    Document cmd_doc = {0};
+    Buffer buf = {0};
+    Buffer cmd_buf = {0};
 
-    doc_empty(&cmd_doc);
+    buffer_empty(&cmd_buf);
 
-    if (argc > 1) doc_load_file(&doc, argv[1]);
-    else doc_empty(&doc);
+    if (argc > 1) buffer_load_from_file(&buf, argv[1]);
+    else buffer_empty(&buf);
 
     Vector2 cursor_pos = {0};
     Vector2 cursor_size = font_size;
 
     Mode mode = MODE_NORMAL;
-
-    SetTargetFPS(75);
-
-    EnableEventWaiting();
 
     float key_down_timer = 0.0;
     float key_down_repeat_time = 0.4;
@@ -544,29 +511,29 @@ int main(int argc, char **argv)
             if (IsKeyDown(KEY_L))
             {
                 key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_L)) doc_move_right(&doc);
-                if (key_down_timer >= key_down_repeat_time) doc_move_right(&doc);
+                if (IsKeyPressed(KEY_L)) buffer_move_right(&buf);
+                if (key_down_timer >= key_down_repeat_time) buffer_move_right(&buf);
             }
 
             if (IsKeyDown(KEY_H))
             {
                 key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_H)) doc_move_left(&doc);
-                if (key_down_timer >= key_down_repeat_time) doc_move_left(&doc);
+                if (IsKeyPressed(KEY_H)) buffer_move_left(&buf);
+                if (key_down_timer >= key_down_repeat_time) buffer_move_left(&buf);
             }
 
             if (IsKeyDown(KEY_J))
             {
                 key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_J)) doc_move_down(&doc);
-                if (key_down_timer >= key_down_repeat_time) doc_move_down(&doc);
+                if (IsKeyPressed(KEY_J)) buffer_move_down(&buf);
+                if (key_down_timer >= key_down_repeat_time) buffer_move_down(&buf);
             }
 
             if (IsKeyDown(KEY_K))
             {
                 key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_K)) doc_move_up(&doc);
-                if (key_down_timer >= key_down_repeat_time) doc_move_up(&doc);
+                if (IsKeyPressed(KEY_K)) buffer_move_up(&buf);
+                if (key_down_timer >= key_down_repeat_time) buffer_move_up(&buf);
             }
 
             if (IsKeyReleased(KEY_L)) key_down_timer = 0;
@@ -574,11 +541,11 @@ int main(int argc, char **argv)
             if (IsKeyReleased(KEY_J)) key_down_timer = 0;
             if (IsKeyReleased(KEY_K)) key_down_timer = 0;
 
-            if (IsKeyPressed(KEY_ZERO)) doc_move_line_begin(&doc);
+            if (IsKeyPressed(KEY_ZERO)) buffer_move_line_begin(&buf);
 
             if (IsKeyPressed(KEY_O) && !IsKeyDown(KEY_LEFT_SHIFT))
             {
-                doc_new_line_bellow(&doc);
+                buffer_new_line_bellow(&buf);
                 mode = MODE_INSERT;
                 codepoint = 0;
             }
@@ -592,25 +559,25 @@ int main(int argc, char **argv)
                     codepoint = 0;
                 }
 
-                if (IsKeyPressed(KEY_W)) doc_move_next_word(&doc);
-                if (IsKeyPressed(KEY_B)) doc_move_prev_word(&doc);
+                if (IsKeyPressed(KEY_W)) buffer_move_next_word(&buf);
+                if (IsKeyPressed(KEY_B)) buffer_move_prev_word(&buf);
 
                 if (IsKeyPressed(KEY_A))
                 {
-                    doc_move_line_end(&doc);
+                    buffer_move_line_end(&buf);
                     mode = MODE_INSERT;
                     codepoint = 0;
                 }
                 if (IsKeyPressed(KEY_I))
                 {
-                    doc_move_line_begin(&doc);
+                    buffer_move_line_begin(&buf);
                     mode = MODE_INSERT;
                     codepoint = 0;
                 }
-                if (IsKeyPressed(KEY_FOUR)) doc_move_line_end(&doc);
+                if (IsKeyPressed(KEY_FOUR)) buffer_move_line_end(&buf);
                 if (IsKeyPressed(KEY_O))
                 {
-                    doc_new_line_above(&doc);
+                    buffer_new_line_above(&buf);
                     mode = MODE_INSERT;
                     codepoint = 0;
                 }
@@ -623,7 +590,7 @@ int main(int argc, char **argv)
             {
                 mode = MODE_NORMAL;
                 codepoint = 0;
-                if (doc.text.data[doc.index-1] != '\n') doc_move_left(&doc);
+                if (buf.text.data[buf.index-1] != '\n') buffer_move_left(&buf);
             }
 
             if (IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_CONTROL))
@@ -632,18 +599,18 @@ int main(int argc, char **argv)
                 {
                     mode = MODE_NORMAL;
                     codepoint = 0;
-                    if (doc.text.data[doc.index-1] != '\n') doc_move_left(&doc);
+                    if (buf.text.data[buf.index-1] != '\n') buffer_move_left(&buf);
                 }
             }
 
-            if (IsKeyPressed(KEY_ENTER)) doc_insert(&doc, '\n');
+            if (IsKeyPressed(KEY_ENTER)) buffer_insert(&buf, '\n');
 
             if (IsKeyPressed(KEY_TAB))
             {
-                for (int i = 0; i < TAB_SIZE; i++) doc_insert(&doc, ' ');
+                for (int i = 0; i < TAB_SIZE; i++) buffer_insert(&buf, ' ');
             }
 
-            if (IsKeyPressed(KEY_BACKSPACE)) doc_delete(&doc);
+            if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(&buf);
 
             while (codepoint > 0)
             {
@@ -651,7 +618,7 @@ int main(int argc, char **argv)
                 const char *char_encoded = CodepointToUTF8(codepoint, &len);
                 if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
                 {
-                    for (int i = 0; i < len; i++) doc_insert(&doc, char_encoded[i]);
+                    for (int i = 0; i < len; i++) buffer_insert(&buf, char_encoded[i]);
                 }
                 codepoint = GetCharPressed();
             }
@@ -665,7 +632,7 @@ int main(int argc, char **argv)
                 codepoint = 0;
             }
 
-            if (IsKeyPressed(KEY_BACKSPACE)) doc_delete(&cmd_doc);
+            if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(&cmd_buf);
 
             while (codepoint > 0)
             {
@@ -673,16 +640,16 @@ int main(int argc, char **argv)
                 const char *char_encoded = CodepointToUTF8(codepoint, &len);
                 if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
                 {
-                    for (int i = 0; i < len; i++) doc_insert(&cmd_doc, char_encoded[i]);
+                    for (int i = 0; i < len; i++) buffer_insert(&cmd_buf, char_encoded[i]);
                 }
                 codepoint = GetCharPressed();
             }
         }
 
-        doc_update_scroll(&doc, font_size);
+        buffer_update_scroll(&buf, font_size);
 
-        cursor_pos.x = doc_get_col(doc) * font_size.x - doc.scroll.x;
-        cursor_pos.y = doc_get_row(doc) * font_size.y - doc.scroll.y;
+        cursor_pos.x = buffer_get_col(buf) * font_size.x - buf.scroll.x;
+        cursor_pos.y = buffer_get_row(buf) * font_size.y - buf.scroll.y;
         cursor_size.x = mode == MODE_INSERT ? font_size.x / 6 : font_size.x;
 
         BeginDrawing();
@@ -692,11 +659,11 @@ int main(int argc, char **argv)
         // Cursor
         if (mode != MODE_COMMAND) DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
 
-        draw_cells(font, doc.text.data, (Vector2){0}, font_size, doc.scroll);
+        draw_characters(font, buf.text.data, (Vector2){0}, font_size, buf.scroll);
 
         if (mode == MODE_COMMAND)
         {
-            doc_update_scroll(&cmd_doc, font_size);
+            buffer_update_scroll(&cmd_buf, font_size);
 
             Rectangle command_rect = {0};
 
@@ -707,8 +674,8 @@ int main(int argc, char **argv)
             command_rect.x = command_rect.width/4-padding;
             command_rect.y = GetScreenHeight()/5-padding;
 
-            cursor_pos.x = (command_rect.x+padding) + font_size.x + doc_get_col(cmd_doc) * font_size.x - cmd_doc.scroll.x;
-            cursor_pos.y = (command_rect.y+padding) + doc_get_row(cmd_doc) * font_size.y - cmd_doc.scroll.y;
+            cursor_pos.x = (command_rect.x+padding) + font_size.x + buffer_get_col(cmd_buf) * font_size.x - cmd_buf.scroll.x;
+            cursor_pos.y = (command_rect.y+padding) + buffer_get_row(cmd_buf) * font_size.y - cmd_buf.scroll.y;
             cursor_size.x = font_size.x / 6;
 
             float thicc = 2.0;
@@ -723,7 +690,7 @@ int main(int argc, char **argv)
             DrawRectangleRec(command_rect, GetColor(COLOR_CMD));
             DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
             DrawTextCodepoint(font, ':', (Vector2){command_rect.x+padding, command_rect.y+padding}, FONT_SIZE, GetColor(COLOR_FG));
-            draw_cells(font, cmd_doc.text.data, (Vector2){command_rect.x+font_size.x+padding, command_rect.y+padding}, font_size, cmd_doc.scroll);
+            draw_characters(font, cmd_buf.text.data, (Vector2){command_rect.x+font_size.x+padding, command_rect.y+padding}, font_size, buf.scroll);
             // EndScissorMode();
         }
 
