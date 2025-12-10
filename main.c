@@ -1,4 +1,5 @@
 #include <raylib.h>
+#include <raymath.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -8,13 +9,16 @@
 #define FONT_SIZE 33
 #define TAB_SIZE 4
 #define CODEPOINT_LEN 250
-#define STRING_CAP 1024*16
+#define STRING_CAP 1024*24
 
 // Inspired by alabaster.nvim colorscheme
 // https://sr.ht/~p00f/alabaster.nvim/
 #define COLOR_BG   0x0e1415ff
 #define COLOR_FG   0xcececeff
 #define COLOR_BLUE 0x007accff
+#define COLOR_CMD  0x182325ff
+
+#define KEY_SEMICOLON 47
 
 #define TODO(msg) \
     do { \
@@ -25,6 +29,7 @@
 typedef enum {
     MODE_NORMAL = 0,
     MODE_INSERT,
+    MODE_COMMAND,
 } Mode;
 
 typedef struct {
@@ -417,9 +422,11 @@ void doc_move_prev_word(Document *d)
     d->index = prev_word;
 }
 
-void draw_cells(Font font, const char *text, Vector2 font_size, Vector2 scroll)
+void draw_cells(Font font, const char *text, Vector2 origin, Vector2 font_size, Vector2 scroll)
 {
+    // Vector2 cell_pos = {-scroll.x, -scroll.y};
     Vector2 cell_pos = {-scroll.x, -scroll.y};
+    cell_pos = Vector2Add(cell_pos, origin);
 
     // int first_visible_line = (int)(scroll.y / font_size.y);
     // int last_visible_line = (int)((scroll.y + GetScreenHeight()) / font_size.y) + 1;
@@ -445,7 +452,7 @@ void draw_cells(Font font, const char *text, Vector2 font_size, Vector2 scroll)
             // cell_pos.x = 0;
             // cell_pos.y += font_size.y;
             // current_line += 1;
-            cell_pos.x = -scroll.x;
+            cell_pos.x = -scroll.x + origin.x;
             cell_pos.y += font_size.y;
             i += byte_len;
             continue;
@@ -471,6 +478,9 @@ int main(int argc, char **argv)
     Vector2 font_size = MeasureTextEx(font, "X", FONT_SIZE, 0);
 
     Document doc = {0};
+    Document cmd_doc = {0};
+
+    doc_empty(&cmd_doc);
 
     if (argc > 1) doc_load_file(&doc, argv[1]);
     else doc_empty(&doc);
@@ -543,6 +553,13 @@ int main(int argc, char **argv)
 
             if (IsKeyDown(KEY_RIGHT_SHIFT) || IsKeyDown(KEY_LEFT_SHIFT))
             {
+                if (IsKeyPressed(KEY_SEMICOLON))
+                {
+                    // printf("Semicolon pressed!\n");
+                    mode = MODE_COMMAND;
+                    codepoint = 0;
+                }
+
                 if (IsKeyPressed(KEY_W)) doc_move_next_word(&doc);
                 if (IsKeyPressed(KEY_B)) doc_move_prev_word(&doc);
 
@@ -608,19 +625,75 @@ int main(int argc, char **argv)
             }
         }
 
+        if (mode == MODE_COMMAND)
+        {
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_CAPS_LOCK))
+            {
+                mode = MODE_NORMAL;
+                codepoint = 0;
+            }
+
+            if (IsKeyPressed(KEY_BACKSPACE)) doc_delete(&cmd_doc);
+
+            while (codepoint > 0)
+            {
+                int len = 0;
+                const char *char_encoded = CodepointToUTF8(codepoint, &len);
+                if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
+                {
+                    for (int i = 0; i < len; i++) doc_insert(&cmd_doc, char_encoded[i]);
+                }
+                codepoint = GetCharPressed();
+            }
+        }
+
         doc_update_scroll(&doc, font_size);
 
         cursor_pos.x = doc_get_col(doc) * font_size.x - doc.scroll.x;
         cursor_pos.y = doc_get_row(doc) * font_size.y - doc.scroll.y;
-        cursor_size.x = mode == MODE_NORMAL ? font_size.x : font_size.x / 6;
+        cursor_size.x = mode == MODE_INSERT ? font_size.x / 6 : font_size.x;
 
         BeginDrawing();
 
         ClearBackground(GetColor(COLOR_BG));
 
-        DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
+        // Cursor
+        if (mode != MODE_COMMAND) DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
 
-        draw_cells(font, doc.text.data, font_size, doc.scroll);
+        draw_cells(font, doc.text.data, (Vector2){0}, font_size, doc.scroll);
+
+        if (mode == MODE_COMMAND)
+        {
+            doc_update_scroll(&cmd_doc, font_size);
+
+            Rectangle command_rect = {0};
+
+            float width_factor = 1.5;
+            float padding = 5.0;
+            command_rect.width = GetScreenWidth()/width_factor+(padding*2);
+            command_rect.height = font_size.y+(padding*2);
+            command_rect.x = command_rect.width/4-padding;
+            command_rect.y = GetScreenHeight()/5-padding;
+
+            cursor_pos.x = (command_rect.x+padding) + font_size.x + doc_get_col(cmd_doc) * font_size.x - cmd_doc.scroll.x;
+            cursor_pos.y = (command_rect.y+padding) + doc_get_row(cmd_doc) * font_size.y - cmd_doc.scroll.y;
+            cursor_size.x = font_size.x / 6;
+
+            float thicc = 2.0;
+            Rectangle border_rect = {0};
+            border_rect.x = command_rect.x-thicc;
+            border_rect.y = command_rect.y-thicc;
+            border_rect.width = command_rect.width+thicc*2;
+            border_rect.height = command_rect.height+thicc*2;
+
+            DrawRectangleLinesEx(border_rect, 2.0, GetColor(COLOR_FG));
+            // BeginScissorMode(command_rect.x, command_rect.y, command_rect.width, command_rect.height);
+            DrawRectangleRec(command_rect, GetColor(COLOR_CMD));
+            DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
+            DrawTextCodepoint(font, ':', (Vector2){command_rect.x+padding, command_rect.y+padding}, FONT_SIZE, GetColor(COLOR_FG));
+            draw_cells(font, cmd_doc.text.data, (Vector2){command_rect.x+font_size.x+padding, command_rect.y+padding}, font_size, cmd_doc.scroll);
+            // EndScissorMode();
+        }
 
         EndDrawing();
     }
