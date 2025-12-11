@@ -27,12 +27,6 @@
         abort(); \
     } while(0)
 
-typedef enum {
-    MODE_NORMAL = 0,
-    MODE_INSERT,
-    MODE_COMMAND,
-} Mode;
-
 typedef struct {
     char  *data;
     size_t len;
@@ -109,6 +103,12 @@ int string_from_file(String *s, const char *file_path)
     return 1;
 }
 
+void string_clear(String *s)
+{
+    memset(s->data, 0, s->cap);
+    s->len = 0;
+}
+
 void string_insert(String *s, size_t idx, char c)
 {
     if (idx <= s->len)
@@ -150,17 +150,24 @@ void buffer_empty(Buffer *b)
 {
     String s = {0};
     string_init(&s);
-    b->filepath = "Untitled";
+    b->filepath = "untitled";
     b->text = s;
 }
 
 void buffer_load_from_file(Buffer *b, const char *filepath)
 {
     String s = {0};
-    // TODO: Check the errors
+    // FIXME: Check for errors
     string_from_file(&s, filepath);
     b->filepath = filepath;
     b->text = s;
+}
+
+void buffer_clear(Buffer *b)
+{
+    string_clear(&b->text);
+    b->index = 0;
+    b->scroll = (Vector2){0};
 }
 
 size_t buffer_get_col(Buffer b)
@@ -304,7 +311,9 @@ void buffer_move_up(Buffer *b)
     if (line_begin == 0) return;
 
     size_t line_above_start = line_begin - 1;
-    while (line_above_start > 0 && b->text.data[line_above_start-1] != '\n') line_above_start -= 1;
+    while (
+        line_above_start > 0 && b->text.data[line_above_start-1] != '\n'
+    ) line_above_start -= 1;
 
     size_t new_index = line_above_start;
     size_t current_col = 0;
@@ -467,233 +476,341 @@ void draw_characters(Font font, const char *text, Vector2 origin, Vector2 font_s
     }
 }
 
+typedef enum {
+    MODE_NORMAL = 0,
+    MODE_INSERT,
+    MODE_COMMAND,
+} Mode;
+
+#define BUFFER_LIST_CAP 16
+
+typedef struct {
+    Buffer buffers[BUFFER_LIST_CAP];
+    size_t buffers_len;
+    size_t active_buffer;
+
+    Font font;
+    Vector2 font_size;
+    Rectangle command_bounds;
+    Buffer command_buffer;
+    int command_padding;
+    Mode mode;
+    Rectangle cursor;
+} Editor;
+
+void editor_init(Editor *edt)
+{
+    const char *font_path = "resources/DepartureMono/DepartureMono-Regular.otf";
+    edt->font = LoadFontEx(font_path, FONT_SIZE, 0, CODEPOINT_LEN);
+    edt->font_size = MeasureTextEx(edt->font, "X", FONT_SIZE, 0);
+
+    Buffer cmd = {0};
+    buffer_empty(&cmd);
+    edt->command_buffer = cmd;
+    edt->command_padding = (int)edt->font_size.x / 1.5;
+
+    edt->mode = MODE_NORMAL;
+
+    edt->cursor.width = edt->font_size.x;
+    edt->cursor.height = edt->font_size.y;
+}
+
+void editor_new_buffer(Editor *edt)
+{
+    Buffer buf = {0};
+    buffer_empty(&buf);
+
+    edt->buffers[edt->buffers_len++] = buf;
+}
+
+void editor_load_file(Editor *edt, const char *file_path)
+{
+    Buffer buf = {0};
+    buffer_load_from_file(&buf, file_path);
+
+    edt->buffers[edt->buffers_len++] = buf;
+}
+
+void editor_update_cursor(Editor *edt)
+{
+    Buffer *buf = &edt->buffers[edt->active_buffer];
+
+    if (edt->mode == MODE_COMMAND)
+    {
+        edt->cursor.x = (edt->command_bounds.x + edt->command_padding) + edt->font_size.x + buffer_get_col(edt->command_buffer) * edt->font_size.x - buf->scroll.x;
+        edt->cursor.y = (edt->command_bounds.y + edt->command_padding) + buffer_get_row(edt->command_buffer) * edt->font_size.y - buf->scroll.y;
+    } else {
+        edt->cursor.x = buffer_get_col(*buf) * edt->font_size.x - buf->scroll.x;
+        edt->cursor.y = buffer_get_row(*buf) * edt->font_size.y - buf->scroll.y;
+    }
+
+    edt->cursor.width = edt->mode == MODE_NORMAL ? edt->font_size.x : edt->font_size.x / 6;
+}
+
+float key_down_timer = 0.0;
+float key_down_repeat_time = 0.4;
+
+void handle_normal_mode(Editor *edt)
+{
+    Buffer *buf = &edt->buffers[edt->active_buffer];
+
+    if (IsKeyPressed(KEY_RIGHT))
+    {
+        edt->active_buffer =
+            edt->active_buffer >= edt->buffers_len - 1
+            ? 0
+            : edt->active_buffer+1;
+    }
+
+    if (IsKeyPressed(KEY_LEFT))
+    {
+        edt->active_buffer =
+            edt->active_buffer < 1
+            ? edt->buffers_len - 1
+            : edt->active_buffer - 1;
+    }
+
+    if (IsKeyPressed(KEY_I))
+    {
+        edt->mode = MODE_INSERT;
+    }
+
+    if (IsKeyDown(KEY_L))
+    {
+        key_down_timer += GetFrameTime();
+        if (IsKeyPressed(KEY_L)) buffer_move_right(buf);
+        if (key_down_timer >= key_down_repeat_time) buffer_move_right(buf);
+    }
+
+    if (IsKeyDown(KEY_H))
+    {
+        key_down_timer += GetFrameTime();
+        if (IsKeyPressed(KEY_H)) buffer_move_left(buf);
+        if (key_down_timer >= key_down_repeat_time) buffer_move_left(buf);
+    }
+
+    if (IsKeyDown(KEY_J))
+    {
+        key_down_timer += GetFrameTime();
+        if (IsKeyPressed(KEY_J)) buffer_move_down(buf);
+        if (key_down_timer >= key_down_repeat_time) buffer_move_down(buf);
+    }
+
+    if (IsKeyDown(KEY_K))
+    {
+        key_down_timer += GetFrameTime();
+        if (IsKeyPressed(KEY_K)) buffer_move_up(buf);
+        if (key_down_timer >= key_down_repeat_time) buffer_move_up(buf);
+    }
+
+    if (IsKeyReleased(KEY_L)) key_down_timer = 0;
+    if (IsKeyReleased(KEY_H)) key_down_timer = 0;
+    if (IsKeyReleased(KEY_J)) key_down_timer = 0;
+    if (IsKeyReleased(KEY_K)) key_down_timer = 0;
+
+    if (IsKeyPressed(KEY_ZERO)) buffer_move_line_begin(buf);
+
+    if (IsKeyPressed(KEY_O) && !IsKeyDown(KEY_LEFT_SHIFT))
+    {
+        buffer_new_line_bellow(buf);
+        edt->mode = MODE_INSERT;
+    }
+
+    if (IsKeyDown(KEY_RIGHT_SHIFT) || IsKeyDown(KEY_LEFT_SHIFT))
+    {
+        if (IsKeyPressed(KEY_SEMICOLON))
+        {
+            edt->mode = MODE_COMMAND;
+        }
+
+        if (IsKeyPressed(KEY_W)) buffer_move_next_word(buf);
+        if (IsKeyPressed(KEY_B)) buffer_move_prev_word(buf);
+
+        if (IsKeyPressed(KEY_A))
+        {
+            buffer_move_line_end(buf);
+            edt->mode = MODE_INSERT;
+        }
+        if (IsKeyPressed(KEY_I))
+        {
+            buffer_move_line_begin(buf);
+            edt->mode = MODE_INSERT;
+        }
+        if (IsKeyPressed(KEY_FOUR)) buffer_move_line_end(buf);
+        if (IsKeyPressed(KEY_O))
+        {
+            buffer_new_line_above(buf);
+            edt->mode = MODE_INSERT;
+        }
+    }
+}
+
+void handle_insert_mode(Editor *edt)
+{
+    int codepoint = GetCharPressed();
+
+    Buffer *buf = &edt->buffers[edt->active_buffer];
+
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_CAPS_LOCK))
+    {
+        edt->mode = MODE_NORMAL;
+        if (buf->text.data[buf->index-1] != '\n') buffer_move_left(buf);
+    }
+
+    if (IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_CONTROL))
+    {
+        if (IsKeyPressed(KEY_C))
+        {
+            edt->mode = MODE_NORMAL;
+            if (buf->text.data[buf->index-1] != '\n') buffer_move_left(buf);
+        }
+    }
+
+    if (IsKeyPressed(KEY_ENTER)) buffer_insert(buf, '\n');
+
+    if (IsKeyPressed(KEY_TAB))
+    {
+        for (int i = 0; i < TAB_SIZE; i++) buffer_insert(buf, ' ');
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(buf);
+
+    while (codepoint > 0)
+    {
+        int len = 0;
+        const char *char_encoded = CodepointToUTF8(codepoint, &len);
+        if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
+        {
+            for (int i = 0; i < len; i++) buffer_insert(buf, char_encoded[i]);
+        }
+        codepoint = GetCharPressed();
+    }
+}
+
+void handle_command_mode(Editor *edt)
+{
+    int codepoint = GetCharPressed();
+
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_CAPS_LOCK))
+    {
+        edt->mode = MODE_NORMAL;
+        if (edt->command_buffer.text.len > 0) buffer_clear(&edt->command_buffer);
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(&edt->command_buffer);
+
+    while (codepoint > 0)
+    {
+        int len = 0;
+        const char *char_encoded = CodepointToUTF8(codepoint, &len);
+        if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
+        {
+            for (int i = 0; i < len; i++) buffer_insert(&edt->command_buffer, char_encoded[i]);
+        }
+        codepoint = GetCharPressed();
+    }
+}
+
 int main(int argc, char **argv)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(800, 600, "Codigo");
-    EnableEventWaiting();
     SetTargetFPS(75);
+
+    EnableEventWaiting();
     SetExitKey(0);
 
-    const char *font_path = "resources/DepartureMono/DepartureMono-Regular.otf";
-    Font font = LoadFontEx(font_path, FONT_SIZE, 0, CODEPOINT_LEN);
+    Editor editor = {0};
+    editor_init(&editor);
 
-    Vector2 font_size = MeasureTextEx(font, "X", FONT_SIZE, 0);
+    // TODO: Do some arguments parsing
+    if (argc > 1) editor_load_file(&editor, argv[1]);
+    else editor_new_buffer(&editor);
 
-    Buffer buf = {0};
-    Buffer cmd_buf = {0};
-
-    buffer_empty(&cmd_buf);
-
-    if (argc > 1) buffer_load_from_file(&buf, argv[1]);
-    else buffer_empty(&buf);
-
-    Vector2 cursor_pos = {0};
-    Vector2 cursor_size = font_size;
-
-    Mode mode = MODE_NORMAL;
-
-    float key_down_timer = 0.0;
-    float key_down_repeat_time = 0.4;
+    editor_load_file(&editor, "Makefile");
+    editor_load_file(&editor, "resources/UTF-8-demo.txt");
 
     while (!WindowShouldClose())
     {
-        int codepoint = GetCharPressed();
-
-        if (mode == MODE_NORMAL)
+        if (editor.mode == MODE_NORMAL)
         {
-            if (IsKeyPressed(KEY_I))
-            {
-                mode = MODE_INSERT;
-                codepoint = 0;
-            }
-
-            if (IsKeyDown(KEY_L))
-            {
-                key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_L)) buffer_move_right(&buf);
-                if (key_down_timer >= key_down_repeat_time) buffer_move_right(&buf);
-            }
-
-            if (IsKeyDown(KEY_H))
-            {
-                key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_H)) buffer_move_left(&buf);
-                if (key_down_timer >= key_down_repeat_time) buffer_move_left(&buf);
-            }
-
-            if (IsKeyDown(KEY_J))
-            {
-                key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_J)) buffer_move_down(&buf);
-                if (key_down_timer >= key_down_repeat_time) buffer_move_down(&buf);
-            }
-
-            if (IsKeyDown(KEY_K))
-            {
-                key_down_timer += GetFrameTime();
-                if (IsKeyPressed(KEY_K)) buffer_move_up(&buf);
-                if (key_down_timer >= key_down_repeat_time) buffer_move_up(&buf);
-            }
-
-            if (IsKeyReleased(KEY_L)) key_down_timer = 0;
-            if (IsKeyReleased(KEY_H)) key_down_timer = 0;
-            if (IsKeyReleased(KEY_J)) key_down_timer = 0;
-            if (IsKeyReleased(KEY_K)) key_down_timer = 0;
-
-            if (IsKeyPressed(KEY_ZERO)) buffer_move_line_begin(&buf);
-
-            if (IsKeyPressed(KEY_O) && !IsKeyDown(KEY_LEFT_SHIFT))
-            {
-                buffer_new_line_bellow(&buf);
-                mode = MODE_INSERT;
-                codepoint = 0;
-            }
-
-            if (IsKeyDown(KEY_RIGHT_SHIFT) || IsKeyDown(KEY_LEFT_SHIFT))
-            {
-                if (IsKeyPressed(KEY_SEMICOLON))
-                {
-                    // printf("Semicolon pressed!\n");
-                    mode = MODE_COMMAND;
-                    codepoint = 0;
-                }
-
-                if (IsKeyPressed(KEY_W)) buffer_move_next_word(&buf);
-                if (IsKeyPressed(KEY_B)) buffer_move_prev_word(&buf);
-
-                if (IsKeyPressed(KEY_A))
-                {
-                    buffer_move_line_end(&buf);
-                    mode = MODE_INSERT;
-                    codepoint = 0;
-                }
-                if (IsKeyPressed(KEY_I))
-                {
-                    buffer_move_line_begin(&buf);
-                    mode = MODE_INSERT;
-                    codepoint = 0;
-                }
-                if (IsKeyPressed(KEY_FOUR)) buffer_move_line_end(&buf);
-                if (IsKeyPressed(KEY_O))
-                {
-                    buffer_new_line_above(&buf);
-                    mode = MODE_INSERT;
-                    codepoint = 0;
-                }
-            }
+            handle_normal_mode(&editor);
+        }
+        else if (editor.mode == MODE_INSERT)
+        {
+            handle_insert_mode(&editor);
+        }
+        else if (editor.mode == MODE_COMMAND)
+        {
+            handle_command_mode(&editor);
         }
 
-        if (mode == MODE_INSERT)
+        if (editor.mode == MODE_COMMAND)
         {
-            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_CAPS_LOCK))
-            {
-                mode = MODE_NORMAL;
-                codepoint = 0;
-                if (buf.text.data[buf.index-1] != '\n') buffer_move_left(&buf);
-            }
-
-            if (IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_CONTROL))
-            {
-                if (IsKeyPressed(KEY_C))
-                {
-                    mode = MODE_NORMAL;
-                    codepoint = 0;
-                    if (buf.text.data[buf.index-1] != '\n') buffer_move_left(&buf);
-                }
-            }
-
-            if (IsKeyPressed(KEY_ENTER)) buffer_insert(&buf, '\n');
-
-            if (IsKeyPressed(KEY_TAB))
-            {
-                for (int i = 0; i < TAB_SIZE; i++) buffer_insert(&buf, ' ');
-            }
-
-            if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(&buf);
-
-            while (codepoint > 0)
-            {
-                int len = 0;
-                const char *char_encoded = CodepointToUTF8(codepoint, &len);
-                if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
-                {
-                    for (int i = 0; i < len; i++) buffer_insert(&buf, char_encoded[i]);
-                }
-                codepoint = GetCharPressed();
-            }
+            float width_factor = 1.5;
+            int padding = editor.command_padding;
+            editor.command_bounds.width  = GetScreenWidth() / width_factor + (padding*2);
+            editor.command_bounds.height = editor.font_size.y + (padding*2);
+            editor.command_bounds.x      = editor.command_bounds.width / 4 - padding;
+            editor.command_bounds.y      = GetScreenHeight() / 5 - padding;
         }
 
-        if (mode == MODE_COMMAND)
-        {
-            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_CAPS_LOCK))
-            {
-                mode = MODE_NORMAL;
-                codepoint = 0;
-            }
+        Buffer *buf = &editor.buffers[editor.active_buffer];
 
-            if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(&cmd_buf);
-
-            while (codepoint > 0)
-            {
-                int len = 0;
-                const char *char_encoded = CodepointToUTF8(codepoint, &len);
-                if (codepoint >= 32 && codepoint <= CODEPOINT_LEN)
-                {
-                    for (int i = 0; i < len; i++) buffer_insert(&cmd_buf, char_encoded[i]);
-                }
-                codepoint = GetCharPressed();
-            }
-        }
-
-        buffer_update_scroll(&buf, font_size);
-
-        cursor_pos.x = buffer_get_col(buf) * font_size.x - buf.scroll.x;
-        cursor_pos.y = buffer_get_row(buf) * font_size.y - buf.scroll.y;
-        cursor_size.x = mode == MODE_INSERT ? font_size.x / 6 : font_size.x;
+        buffer_update_scroll(buf, editor.font_size);
+        editor_update_cursor(&editor);
 
         BeginDrawing();
 
         ClearBackground(GetColor(COLOR_BG));
 
         // Cursor
-        if (mode != MODE_COMMAND) DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
+        if (editor.mode != MODE_COMMAND) DrawRectangleRec(editor.cursor, GetColor(COLOR_BLUE));
 
-        draw_characters(font, buf.text.data, (Vector2){0}, font_size, buf.scroll);
+        // Text
+        draw_characters(editor.font, buf->text.data, (Vector2){0}, editor.font_size, buf->scroll);
 
-        if (mode == MODE_COMMAND)
+        if (editor.mode == MODE_COMMAND)
         {
-            buffer_update_scroll(&cmd_buf, font_size);
-
-            Rectangle command_rect = {0};
-
-            float width_factor = 1.5;
-            float padding = 5.0;
-            command_rect.width = GetScreenWidth()/width_factor+(padding*2);
-            command_rect.height = font_size.y+(padding*2);
-            command_rect.x = command_rect.width/4-padding;
-            command_rect.y = GetScreenHeight()/5-padding;
-
-            cursor_pos.x = (command_rect.x+padding) + font_size.x + buffer_get_col(cmd_buf) * font_size.x - cmd_buf.scroll.x;
-            cursor_pos.y = (command_rect.y+padding) + buffer_get_row(cmd_buf) * font_size.y - cmd_buf.scroll.y;
-            cursor_size.x = font_size.x / 6;
-
             float thicc = 2.0;
             Rectangle border_rect = {0};
-            border_rect.x = command_rect.x-thicc;
-            border_rect.y = command_rect.y-thicc;
-            border_rect.width = command_rect.width+thicc*2;
-            border_rect.height = command_rect.height+thicc*2;
+            border_rect.x      = editor.command_bounds.x - thicc;
+            border_rect.y      = editor.command_bounds.y - thicc;
+            border_rect.width  = editor.command_bounds.width + thicc * 2;
+            border_rect.height = editor.command_bounds.height + thicc * 2;
 
+            // Border
             DrawRectangleLinesEx(border_rect, 2.0, GetColor(COLOR_FG));
-            // BeginScissorMode(command_rect.x, command_rect.y, command_rect.width, command_rect.height);
-            DrawRectangleRec(command_rect, GetColor(COLOR_CMD));
-            DrawRectangleV(cursor_pos, cursor_size, GetColor(COLOR_BLUE));
-            DrawTextCodepoint(font, ':', (Vector2){command_rect.x+padding, command_rect.y+padding}, FONT_SIZE, GetColor(COLOR_FG));
-            draw_characters(font, cmd_buf.text.data, (Vector2){command_rect.x+font_size.x+padding, command_rect.y+padding}, font_size, buf.scroll);
-            // EndScissorMode();
+
+            // Command background
+            DrawRectangleRec(editor.command_bounds, GetColor(COLOR_CMD));
+
+            // Cursor
+            DrawRectangleRec(editor.cursor, GetColor(COLOR_BLUE));
+
+            // Prompt
+            Vector2 prompt_pos = {
+                editor.command_bounds.x + editor.command_padding,
+                editor.command_bounds.y + editor.command_padding
+            };
+            DrawTextCodepoint(editor.font, ':', prompt_pos, FONT_SIZE, GetColor(COLOR_FG));
+
+            // Text
+            Vector2 text_origin = {
+                editor.command_bounds.x + editor.font_size.x + editor.command_padding,
+                editor.command_bounds.y + editor.command_padding
+            };
+            draw_characters(
+                editor.font,
+                editor.command_buffer.text.data,
+                text_origin,
+                editor.font_size,
+                (Vector2){-0,-0}
+            );
         }
 
         EndDrawing();
     }
+
+    return 0;
 }
