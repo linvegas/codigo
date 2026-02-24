@@ -14,10 +14,16 @@
 
 // Inspired by alabaster.nvim colorscheme
 // https://sr.ht/~p00f/alabaster.nvim/
-#define COLOR_BG   0x0e1415ff
-#define COLOR_FG   0xcececeff
-#define COLOR_BLUE 0x007accff
+// #define COLOR_BG     0x0e1415ff
+// #define COLOR_FG     0xcececeff
+// #define COLOR_CURSOR 0x007accff
 #define COLOR_CMD  0x182325ff
+
+// Inspired by mfd.nvim colorscheme (mfd-stealth)
+// https://github.com/kungfusheep/mfd.nvim
+#define COLOR_BG     0x0d1410ff
+#define COLOR_FG     0x7a9a7aff
+#define COLOR_CURSOR 0x9ABB9Aff
 
 #define KEY_SEMICOLON 47
 
@@ -765,7 +771,7 @@ int main(int argc, char **argv)
         ClearBackground(GetColor(COLOR_BG));
 
         // Cursor
-        if (editor.mode != MODE_COMMAND) DrawRectangleRec(editor.cursor, GetColor(COLOR_BLUE));
+        if (editor.mode != MODE_COMMAND) DrawRectangleRec(editor.cursor, GetColor(COLOR_CURSOR));
 
         // Text
         draw_characters(editor.font, buf->text.data, (Vector2){0}, editor.font_size, buf->scroll);
@@ -786,7 +792,7 @@ int main(int argc, char **argv)
             DrawRectangleRec(editor.command_bounds, GetColor(COLOR_CMD));
 
             // Cursor
-            DrawRectangleRec(editor.cursor, GetColor(COLOR_BLUE));
+            DrawRectangleRec(editor.cursor, GetColor(COLOR_CURSOR));
 
             // Prompt
             Vector2 prompt_pos = {
