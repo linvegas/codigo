@@ -17,13 +17,14 @@
 // #define COLOR_BG     0x0e1415ff
 // #define COLOR_FG     0xcececeff
 // #define COLOR_CURSOR 0x007accff
-#define COLOR_CMD  0x182325ff
+// #define COLOR_CMD  0x182325ff
 
 // Inspired by mfd.nvim colorscheme (mfd-stealth)
 // https://github.com/kungfusheep/mfd.nvim
 #define COLOR_BG     0x0d1410ff
 #define COLOR_FG     0x7a9a7aff
 #define COLOR_CURSOR 0x9ABB9Aff
+#define COLOR_CMD    0x101810ff
 
 #define KEY_SEMICOLON 47
 
@@ -537,14 +538,42 @@ void editor_load_file(Editor *edt, const char *file_path)
     edt->buffers[edt->buffers_len++] = buf;
 }
 
+void editor_save_file(Editor *edt)
+{
+    Buffer *buf = &edt->buffers[edt->active_buffer];
+
+    FILE *file = fopen(buf->filepath, "w");
+    assert(file != NULL && "Failed to open file for saving");
+
+    if (buf->text.len > 0) {
+        size_t bytes_written = fwrite(buf->text.data, sizeof(char), buf->text.len, file);
+        assert(bytes_written == buf->text.len && "Failed to write to file");
+        if (buf->text.data[bytes_written-1] != '\n') fputc('\n', file);
+    }
+
+    fclose(file);
+    printf("File '%s' was saved\n", buf->filepath);
+}
+
 void editor_update_cursor(Editor *edt)
 {
     Buffer *buf = &edt->buffers[edt->active_buffer];
 
     if (edt->mode == MODE_COMMAND)
     {
-        edt->cursor.x = (edt->command_bounds.x + edt->command_padding) + edt->font_size.x + buffer_get_col(edt->command_buffer) * edt->font_size.x - buf->scroll.x;
-        edt->cursor.y = (edt->command_bounds.y + edt->command_padding) + buffer_get_row(edt->command_buffer) * edt->font_size.y - buf->scroll.y;
+        Buffer cmd_buf = edt->command_buffer;
+
+        edt->cursor.x =
+            (edt->command_bounds.x + edt->command_padding) +
+            edt->font_size.x +
+            buffer_get_col(cmd_buf) *
+            edt->font_size.x - cmd_buf.scroll.x;
+
+        edt->cursor.y =
+            (edt->command_bounds.y + edt->command_padding) +
+            buffer_get_row(cmd_buf) *
+            edt->font_size.y - cmd_buf.scroll.y;
+
     } else {
         edt->cursor.x = buffer_get_col(*buf) * edt->font_size.x - buf->scroll.x;
         edt->cursor.y = buffer_get_row(*buf) * edt->font_size.y - buf->scroll.y;
@@ -705,6 +734,19 @@ void handle_command_mode(Editor *edt)
 
     if (IsKeyPressed(KEY_BACKSPACE)) buffer_delete(&edt->command_buffer);
 
+    if (IsKeyPressed(KEY_ENTER))
+    {
+        if (edt->command_buffer.text.len > 0)
+        {
+            if (strcmp(edt->command_buffer.text.data, "w") == 0)
+            {
+                editor_save_file(edt);
+                edt->mode = MODE_NORMAL;
+                if (edt->command_buffer.text.len > 0) buffer_clear(&edt->command_buffer);
+            }
+        }
+    }
+
     while (codepoint > 0)
     {
         int len = 0;
@@ -733,8 +775,8 @@ int main(int argc, char **argv)
     if (argc > 1) editor_load_file(&editor, argv[1]);
     else editor_new_buffer(&editor);
 
-    editor_load_file(&editor, "Makefile");
-    editor_load_file(&editor, "resources/UTF-8-demo.txt");
+    // editor_load_file(&editor, "Makefile");
+    // editor_load_file(&editor, "resources/UTF-8-demo.txt");
 
     while (!WindowShouldClose())
     {
