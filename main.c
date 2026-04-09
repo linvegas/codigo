@@ -456,7 +456,7 @@ void buffer_move_prev_word(Buffer *b)
     b->index = prev_word;
 }
 
-void draw_characters(Font font, const char *text, Vector2 origin, Vector2 font_size, Vector2 scroll)
+void draw_characters(Font font, const char *text, Vector2 origin, Vector2 font_size, Vector2 scroll, Vector2 cursor_pos)
 {
     Vector2 cell_pos = {-scroll.x, -scroll.y};
     cell_pos = Vector2Add(cell_pos, origin);
@@ -476,7 +476,10 @@ void draw_characters(Font font, const char *text, Vector2 origin, Vector2 font_s
             continue;
         }
 
-        DrawTextCodepoint(font, codepoint, cell_pos, FONT_SIZE, GetColor(COLOR_FG));
+        Color color = GetColor(COLOR_FG);
+        if (Vector2Equals(cell_pos, cursor_pos)) color = GetColor(COLOR_BG);
+
+        DrawTextCodepoint(font, codepoint, cell_pos, FONT_SIZE, color);
 
         cell_pos.x += font_size.x;
         i += byte_len;
@@ -583,7 +586,7 @@ void editor_update_cursor(Editor *edt)
 }
 
 float key_down_timer = 0.0;
-float key_down_repeat_time = 0.4;
+float key_down_repeat_time = 0.2;
 
 void handle_normal_mode(Editor *edt)
 {
@@ -816,7 +819,10 @@ int main(int argc, char **argv)
         if (editor.mode != MODE_COMMAND) DrawRectangleRec(editor.cursor, GetColor(COLOR_CURSOR));
 
         // Text
-        draw_characters(editor.font, buf->text.data, (Vector2){0}, editor.font_size, buf->scroll);
+        draw_characters(
+            editor.font, buf->text.data, (Vector2){0},
+            editor.font_size, buf->scroll, (Vector2){ editor.cursor.x, editor.cursor.y }
+        );
 
         if (editor.mode == MODE_COMMAND)
         {
@@ -848,12 +854,14 @@ int main(int argc, char **argv)
                 editor.command_bounds.x + editor.font_size.x + editor.command_padding,
                 editor.command_bounds.y + editor.command_padding
             };
+
             draw_characters(
                 editor.font,
                 editor.command_buffer.text.data,
                 text_origin,
                 editor.font_size,
-                (Vector2){-0,-0}
+                (Vector2){-0,-0},
+                (Vector2){ editor.cursor.x, editor.cursor.y }
             );
         }
 
